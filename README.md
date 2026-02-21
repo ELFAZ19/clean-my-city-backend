@@ -437,22 +437,3 @@ curl -X POST http://localhost:3000/api/issues \
 
 ---
 
-## 📄 License
-
-ISC License
-
----
-
-## 👥 Contributors
-
-This project was developed as part of an Internet Programming course project.
-
----
-
-## 📞 Support
-
-For issues or questions, please refer to the documentation or contact the development team.
-
----
-
-**Built with ❤️ for better city management**
