@@ -63,6 +63,17 @@ router.put(
 );
 
 /**
+ * @route   GET /api/issues/:id/image
+ * @desc    Get issue image
+ * @access  Private (Owner or assigned authority)
+ */
+router.get(
+    '/:id/image',
+    authenticate,
+    issueController.getIssueImage
+);
+
+/**
  * @route   GET /api/issues/:id
  * @desc    Get issue by ID
  * @access  Private (Owner or assigned authority)

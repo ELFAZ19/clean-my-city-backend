@@ -189,10 +189,6 @@ const updateIssueStatus = async (req, res, next) => {
     }
 };
 
-/**
- * Get issue by ID
- * GET /api/issues/:id
- */
 const getIssueById = async (req, res, next) => {
     try {
         const issueId = parseInt(req.params.id);
@@ -208,10 +204,33 @@ const getIssueById = async (req, res, next) => {
     }
 };
 
+/**
+ * Get issue image
+ * GET /api/issues/:id/image
+ */
+const getIssueImage = async (req, res, next) => {
+    try {
+        const issueId = parseInt(req.params.id);
+        const { buffer, mimeType } = await issueService.getIssueImageData(
+            issueId,
+            req.user.id,
+            req.user.role
+        );
+
+        res.set('Content-Type', mimeType);
+        res.set('Cache-Control', 'private, max-age=86400'); // Cache for 24 hours
+        res.send(buffer);
+
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     createIssue,
     getMyIssues,
     getOrganizationQueue,
     updateIssueStatus,
-    getIssueById
+    getIssueById,
+    getIssueImage
 };

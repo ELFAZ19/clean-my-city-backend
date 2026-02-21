@@ -94,7 +94,11 @@ const getUserIssues = async (userId) => {
             [userId]
         );
 
-        return issues;
+        // Add efficient image URL for issues that have images
+        return issues.map(issue => ({
+            ...issue,
+            image_url: issue.has_image ? `/issue/${issue.id}/image` : null
+        }));
 
     } catch (error) {
         throw error;
@@ -129,7 +133,11 @@ const getOrganizationIssues = async (organizationId, status = null) => {
 
         const [issues] = await pool.query(query, params);
 
-        return issues;
+        // Add efficient image URL for issues that have images
+        return issues.map(issue => ({
+            ...issue,
+            image_url: issue.has_image ? `/issue/${issue.id}/image` : null
+        }));
 
     } catch (error) {
         throw error;
@@ -195,10 +203,11 @@ const updateIssueStatus = async (issueId, status, organizationId) => {
  */
 const getIssueById = async (issueId, userId, role) => {
     try {
-        // Base query
+        // Base query - excluding large blob for the main JSON response
         let query = `
             SELECT i.id, i.title, i.description, i.status, i.latitude, i.longitude, 
-                   i.created_at, i.resolved_at, i.image_data, i.image_mime_type, i.user_id, i.organization_id,
+                   i.created_at, i.resolved_at, i.image_mime_type, i.user_id, i.organization_id,
+                   CASE WHEN i.image_data IS NOT NULL THEN TRUE ELSE FALSE END as has_image,
                    o.name as organization_name,
                    u.full_name as reporter_name
             FROM issues i
@@ -228,15 +237,57 @@ const getIssueById = async (issueId, userId, role) => {
              }
         }
         
-        // Convert BLOB to Base64 for API response
-        if (issue.image_data) {
-             const base64Image = issue.image_data.toString('base64');
-             issue.image_url = `data:${issue.image_mime_type};base64,${base64Image}`;
-             delete issue.image_data; // Remove raw buffer
-             delete issue.image_mime_type;
-        }
+        // Use efficient image URL instead of embedded base64
+        issue.image_url = issue.has_image ? `/issue/${issue.id}/image` : null;
+        delete issue.image_mime_type;
 
         return issue;
+
+    } catch (error) {
+        throw error;
+    }
+};
+
+/**
+ * Get issue image data directly (efficiently)
+ * @param {number} issueId - Issue ID
+ * @param {number} userId - Requesting user ID
+ * @param {string} role - Requesting user role
+ * @returns {Object} Image buffer and mime type
+ */
+const getIssueImageData = async (issueId, userId, role) => {
+    try {
+        const [issues] = await pool.query(
+            'SELECT image_data, image_mime_type, user_id, organization_id FROM issues WHERE id = ?',
+            [issueId]
+        );
+
+        if (issues.length === 0) {
+            throw new AppError('Issue not found', 404);
+        }
+
+        const issue = issues[0];
+
+        if (!issue.image_data) {
+            throw new AppError('No image associated with this issue', 404);
+        }
+
+        // Access control
+        if (role === USER_ROLES.CITIZEN && issue.user_id !== userId) {
+            throw new AppError('Access denied.', 403);
+        }
+        
+        if (role === USER_ROLES.AUTHORITY) {
+             const [orgRequest] = await pool.query('SELECT id FROM organizations WHERE user_id = ?', [userId]);
+             if (orgRequest.length > 0 && issue.organization_id !== orgRequest[0].id) {
+                 throw new AppError('Access denied.', 403);
+             }
+        }
+
+        return {
+            buffer: issue.image_data,
+            mimeType: issue.image_mime_type
+        };
 
     } catch (error) {
         throw error;
@@ -248,5 +299,6 @@ module.exports = {
     getUserIssues,
     getOrganizationIssues,
     updateIssueStatus,
-    getIssueById
+    getIssueById,
+    getIssueImageData
 };

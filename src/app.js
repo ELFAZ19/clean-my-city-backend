@@ -70,19 +70,19 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // ============================================
-// HEALTH CHECK ENDPOINT
+// API ROUTES
 // ============================================
-app.get('/health', (req, res) => {
-    res.status(200).json({
-        success: true,
-        message: 'Fix My City API is running',
-        timestamp: new Date().toISOString()
+
+// Dedicated image serving (outside /api to avoid path doubling issues)
+app.get('/issue-image/:id', (req, res, next) => {
+    // We need to inject the controller here or just use it
+    const issueController = require('./controllers/issueController');
+    const { authenticate } = require('./middleware/auth');
+    authenticate(req, res, () => {
+        issueController.getIssueImage(req, res, next);
     });
 });
 
-// ============================================
-// API ROUTES
-// ============================================
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/issues', issueRoutes);
