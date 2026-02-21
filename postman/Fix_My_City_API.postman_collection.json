@@ -1,0 +1,695 @@
+{
+	"info": {
+		"_postman_id": "fix-my-city",
+		"name": "Fix My City ",
+		"description": "Complete API collection for Fix My City - City Issue Reporting & Management System\n\nROLES:\n- CITIZEN: Can create issues, view their own issues\n- AUTHORITY: Can view assigned issues, update issue status, manage their profile\n- ADMIN: Can CRUD organizations/authorities only",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000/api",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Authentication",
+			"description": "Public authentication endpoints",
+			"item": [
+				{
+					"name": "Register Citizen",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"citizen@example.com\",\n    \"password\": \"Citizen@123\",\n    \"full_name\": \"John Doe\",\n    \"phone\": \"+1234567890\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "register"]
+						},
+						"description": "Register a new citizen account.\n\n**Body Fields:**\n- `email` (string, required): Valid email address\n- `password` (string, required): Min 8 chars, must contain uppercase, lowercase, number, special char\n- `full_name` (string, required): 2-255 characters\n- `phone` (string, optional): Valid phone number format"
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.data && jsonData.data.token) {",
+									"    pm.collectionVariables.set('token', jsonData.data.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"citizen@example.com\",\n    \"password\": \"Citizen@123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "login"]
+						},
+						"description": "Authenticate user and receive JWT token.\n\n**Body Fields:**\n- `email` (string, required): User's email address\n- `password` (string, required): User's password\n\n**Response:** Returns user object and JWT token. Token is automatically saved to collection variables."
+					},
+					"response": []
+				},
+				{
+					"name": "Login as Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.data && jsonData.data.token) {",
+									"    pm.collectionVariables.set('token', jsonData.data.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"admin@fixmycity.com\",\n    \"password\": \"Admin@123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "login"]
+						},
+						"description": "Login as Admin (can only CRUD organizations).\n\n**Default Admin Credentials:**\n- Email: admin@fixmycity.com\n- Password: Admin@123456"
+					},
+					"response": []
+				},
+				{
+					"name": "Login as Authority",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.data && jsonData.data.token) {",
+									"    pm.collectionVariables.set('token', jsonData.data.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"electricity@city.gov\",\n    \"password\": \"Electricity@123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "login"]
+						},
+						"description": "Login as Authority (organization). Can manage assigned issues and profile.\n\n**Sample Authority Credentials:**\n- Email: electricity@city.gov\n- Password: Electricity@123"
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/auth/logout",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "logout"]
+						},
+						"description": "Logout current user and destroy session.\n\n**Body Fields:** None required"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "User Profile",
+			"description": "User profile management endpoints (requires authentication)",
+			"item": [
+				{
+					"name": "Get Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/users/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["users", "profile"]
+						},
+						"description": "Get current user's profile information.\n\n**Authorization:** Required (Bearer token)\n\n**Body Fields:** None (GET request)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"full_name\": \"John Smith\",\n    \"phone\": \"+1987654321\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["users", "profile"]
+						},
+						"description": "Update current user's profile information.\n\n**Authorization:** Required (Bearer token)\n\n**Body Fields:**\n- `full_name` (string, optional): 2-255 characters\n- `phone` (string, optional): Valid phone number format"
+					},
+					"response": []
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"current_password\": \"Citizen@123\",\n    \"new_password\": \"NewPassword@456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/users/password",
+							"host": ["{{baseUrl}}"],
+							"path": ["users", "password"]
+						},
+						"description": "Change current user's password.\n\n**Authorization:** Required (Bearer token)\n\n**Body Fields:**\n- `current_password` (string, required): Current password\n- `new_password` (string, required): Min 8 chars, must contain uppercase, lowercase, number, special char"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Issues - Citizen",
+			"description": "Issue management endpoints for citizens",
+			"item": [
+				{
+					"name": "Create Issue (with Image)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "title",
+									"value": "Broken street light on Main Street",
+									"type": "text"
+								},
+								{
+									"key": "description",
+									"value": "The street light at the corner of Main St and 5th Ave has been broken for 3 days. It's very dark at night and poses a safety hazard.",
+									"type": "text"
+								},
+								{
+									"key": "organization_id",
+									"value": "1",
+									"type": "text"
+								},
+								{
+									"key": "latitude",
+									"value": "40.7128",
+									"type": "text"
+								},
+								{
+									"key": "longitude",
+									"value": "-74.0060",
+									"type": "text"
+								},
+								{
+									"key": "image",
+									"type": "file",
+									"src": ""
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/issues",
+							"host": ["{{baseUrl}}"],
+							"path": ["issues"]
+						},
+						"description": "Create a new issue report with image upload using multipart/form-data.\n\n**Authorization:** Required (Bearer token, CITIZEN role only)\n\n**Body Fields (form-data):**\n- `title` (text, required): 5-255 characters\n- `description` (text, required): 10-5000 characters\n- `organization_id` (text, required): ID of the responsible authority\n- `latitude` (text, optional): GPS latitude (-90 to 90)\n- `longitude` (text, optional): GPS longitude (-180 to 180)\n- `image` (file, optional): Image file (JPEG, PNG, GIF, WebP - max 5MB)\n\n**Duplicate Detection:**\nIf a similar issue exists, returns the existing issue instead."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Issue (Minimal)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "title",
+									"value": "Water pipe leak on Oak Avenue",
+									"type": "text"
+								},
+								{
+									"key": "description",
+									"value": "There is a significant water leak from the main pipe on Oak Avenue near the elementary school.",
+									"type": "text"
+								},
+								{
+									"key": "organization_id",
+									"value": "2",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/issues",
+							"host": ["{{baseUrl}}"],
+							"path": ["issues"]
+						},
+						"description": "Create a new issue with only required fields (no image).\n\n**Authorization:** Required (Bearer token, CITIZEN role only)\n\n**Body Fields (form-data - minimal):**\n- `title` (text, required): 5-255 characters\n- `description` (text, required): 10-5000 characters\n- `organization_id` (text, required): ID of the responsible authority"
+					},
+					"response": []
+				},
+				{
+					"name": "Get My Issues",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/issues/my-issues",
+							"host": ["{{baseUrl}}"],
+							"path": ["issues", "my-issues"]
+						},
+						"description": "Get all issues created by the current user.\n\n**Authorization:** Required (Bearer token, CITIZEN role only)\n\n**Body Fields:** None (GET request)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Issue by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/issues/1",
+							"host": ["{{baseUrl}}"],
+							"path": ["issues", "1"]
+						},
+						"description": "Get detailed information about a specific issue.\n\n**Authorization:** Required (Bearer token)\n- Citizens can only view their own issues\n- Authorities can view issues assigned to them\n- Admins can view all issues\n\n**URL Parameters:**\n- `id` (integer): Issue ID"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Issues - Authority",
+			"description": "Issue management endpoints for authorities (organizations)",
+			"item": [
+				{
+					"name": "Get Authority Issue Queue",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/issues/queue",
+							"host": ["{{baseUrl}}"],
+							"path": ["issues", "queue"]
+						},
+						"description": "Get all issues assigned to the authority (organization).\n\n**Authorization:** Required (Bearer token, AUTHORITY role only)\n\n**Body Fields:** None (GET request)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Authority Issue Queue (Filtered)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/issues/queue?status=PENDING",
+							"host": ["{{baseUrl}}"],
+							"path": ["issues", "queue"],
+							"query": [
+								{
+									"key": "status",
+									"value": "PENDING",
+									"description": "Filter by status: PENDING, IN_PROGRESS, or RESOLVED"
+								}
+							]
+						},
+						"description": "Get issues filtered by status.\n\n**Authorization:** Required (Bearer token, AUTHORITY role only)\n\n**Query Parameters:**\n- `status` (string, optional): Filter by PENDING, IN_PROGRESS, or RESOLVED"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Issue Status - To In Progress",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"IN_PROGRESS\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/issues/1/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["issues", "1", "status"]
+						},
+						"description": "Update issue status to IN_PROGRESS.\n\n**Authorization:** Required (Bearer token, AUTHORITY role only)\n\n**URL Parameters:**\n- `id` (integer): Issue ID\n\n**Body Fields:**\n- `status` (string, required): Must be \"IN_PROGRESS\"\n\n**Note:** Status can only move forward (PENDING → IN_PROGRESS → RESOLVED)"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Issue Status - To Resolved",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"RESOLVED\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/issues/1/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["issues", "1", "status"]
+						},
+						"description": "Update issue status to RESOLVED.\n\n**Authorization:** Required (Bearer token, AUTHORITY role only)\n\n**URL Parameters:**\n- `id` (integer): Issue ID\n\n**Body Fields:**\n- `status` (string, required): Must be \"RESOLVED\""
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Organizations - Admin",
+			"description": "Organization (Authority) management endpoints - ADMIN ONLY",
+			"item": [
+				{
+					"name": "Create Authority (Organization)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Sanitation Department\",\n    \"description\": \"Handles garbage collection, waste management, and city cleanliness.\",\n    \"category\": \"Sanitation\",\n    \"contact_email\": \"sanitation@city.gov\",\n    \"contact_phone\": \"+1234567893\",\n    \"email\": \"sanitation@city.gov\",\n    \"password\": \"Sanitation@123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/organizations",
+							"host": ["{{baseUrl}}"],
+							"path": ["organizations"]
+						},
+						"description": "Create a new authority (organization) with linked user account.\n\n**Authorization:** Required (Bearer token, ADMIN role only)\n\n**Body Fields:**\n- `name` (string, required): 2-255 characters, organization name\n- `description` (string, optional): Max 5000 characters\n- `category` (string, required): 2-100 characters (e.g., Electricity, Water, Roads)\n- `contact_email` (string, required): Valid email for public contact\n- `contact_phone` (string, optional): Valid phone number\n- `email` (string, required): Login email for authority account\n- `password` (string, required): Min 8 chars with uppercase, lowercase, number, special char"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Authority (Organization)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Electricity & Power Department\",\n    \"description\": \"Updated description for the department.\",\n    \"category\": \"Electricity\",\n    \"contact_email\": \"power@city.gov\",\n    \"contact_phone\": \"+1987654321\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/organizations/1",
+							"host": ["{{baseUrl}}"],
+							"path": ["organizations", "1"]
+						},
+						"description": "Update authority (organization) details.\n\n**Authorization:** Required (Bearer token, ADMIN role only)\n\n**URL Parameters:**\n- `id` (integer): Organization ID\n\n**Body Fields (all optional):**\n- `name` (string): 2-255 characters\n- `description` (string): Max 5000 characters\n- `category` (string): 2-100 characters\n- `contact_email` (string): Valid email\n- `contact_phone` (string): Valid phone number"
+					},
+					"response": []
+				},
+				{
+					"name": "Activate Authority",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/organizations/1/activate",
+							"host": ["{{baseUrl}}"],
+							"path": ["organizations", "1", "activate"]
+						},
+						"description": "Activate an authority (organization) and its user account.\n\n**Authorization:** Required (Bearer token, ADMIN role only)\n\n**URL Parameters:**\n- `id` (integer): Organization ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Deactivate Authority",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/organizations/1/deactivate",
+							"host": ["{{baseUrl}}"],
+							"path": ["organizations", "1", "deactivate"]
+						},
+						"description": "Deactivate an authority (organization) and its user account.\n\n**Authorization:** Required (Bearer token, ADMIN role only)\n\n**URL Parameters:**\n- `id` (integer): Organization ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Authorities",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/organizations",
+							"host": ["{{baseUrl}}"],
+							"path": ["organizations"]
+						},
+						"description": "Get list of all authorities (organizations).\n\n**Authorization:** Required (Bearer token, ADMIN role only)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Authorities (Active Only)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/organizations?active=true",
+							"host": ["{{baseUrl}}"],
+							"path": ["organizations"],
+							"query": [
+								{
+									"key": "active",
+									"value": "true",
+									"description": "Filter for active authorities only"
+								}
+							]
+						},
+						"description": "Get list of active authorities only.\n\n**Authorization:** Required (Bearer token, ADMIN role only)\n\n**Query Parameters:**\n- `active` (boolean, optional): Set to 'true' for active only"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Authority by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/organizations/1",
+							"host": ["{{baseUrl}}"],
+							"path": ["organizations", "1"]
+						},
+						"description": "Get detailed information about a specific authority.\n\n**Authorization:** Required (Bearer token, ADMIN role only)\n\n**URL Parameters:**\n- `id` (integer): Organization ID"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Public",
+			"description": "Public endpoints (no authentication required)",
+			"item": [
+				{
+					"name": "Get Available Authorities (Public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/organizations/public",
+							"host": ["{{baseUrl}}"],
+							"path": ["organizations", "public"]
+						},
+						"description": "Get list of active authorities (organizations) for citizens to select when creating issues.\n\n**Authorization:** None required (public endpoint)\n\n**Returns:** id, name, description, category, contact_email, contact_phone"
+					},
+					"response": []
+				},
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:3000/health",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "3000",
+							"path": ["health"]
+						},
+						"description": "Check if the API server is running.\n\n**Authorization:** None required"
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
