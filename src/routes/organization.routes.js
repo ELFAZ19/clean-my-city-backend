@@ -19,6 +19,18 @@ const { USER_ROLES } = require('../config/constants');
 router.get('/public', organizationController.getPublicOrganizations);
 
 /**
+ * @route   GET /api/organizations/me
+ * @desc    Get current user's organization profile
+ * @access  Private (Authority)
+ */
+router.get(
+    '/me',
+    authenticate,
+    authorize([USER_ROLES.AUTHORITY]),
+    organizationController.getMyOrganization
+);
+
+/**
  * @route   POST /api/organizations
  * @desc    Create a new organization
  * @access  Private (Admin only)
@@ -39,7 +51,7 @@ router.post(
 router.put(
     '/:id',
     authenticate,
-    authorize([USER_ROLES.ADMIN]),
+    authorize([USER_ROLES.ADMIN, USER_ROLES.AUTHORITY]),
     organizationController.updateOrganization
 );
 
@@ -87,8 +99,32 @@ router.get(
 router.get(
     '/:id',
     authenticate,
-    authorize([USER_ROLES.ADMIN]),
+    authorize([USER_ROLES.ADMIN, USER_ROLES.AUTHORITY]),
     organizationController.getOrganizationById
+);
+
+/**
+ * @route   DELETE /api/organizations/:id
+ * @desc    Delete organization and its user account
+ * @access  Private (Admin only)
+ */
+router.delete(
+    '/:id',
+    authenticate,
+    authorize([USER_ROLES.ADMIN]),
+    organizationController.deleteOrganization
+);
+
+/**
+ * @route   GET /api/organizations/:id/export
+ * @desc    Export all issues for an org as CSV or XLSX
+ * @access  Private (Admin or Authority)
+ */
+router.get(
+    '/:id/export',
+    authenticate,
+    authorize([USER_ROLES.ADMIN, USER_ROLES.AUTHORITY]),
+    organizationController.exportOrgReport
 );
 
 module.exports = router;

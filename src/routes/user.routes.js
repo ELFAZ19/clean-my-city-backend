@@ -1,33 +1,16 @@
-/**
- * User Routes
- * Protected routes for user profile management
- */
-
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
 const { validateProfileUpdate, validatePasswordChange } = require('../middleware/validation');
+const { USER_ROLES } = require('../config/constants');
 
-/**
- * @route   GET /api/users/profile
- * @desc    Get current user profile
- * @access  Private (All authenticated users)
- */
 router.get('/profile', authenticate, userController.getProfile);
-
-/**
- * @route   PUT /api/users/profile
- * @desc    Update user profile
- * @access  Private (All authenticated users)
- */
 router.put('/profile', authenticate, validateProfileUpdate, userController.updateProfile);
-
-/**
- * @route   PUT /api/users/password
- * @desc    Change password
- * @access  Private (All authenticated users)
- */
 router.put('/password', authenticate, validatePasswordChange, userController.changePassword);
+
+// Admin-only routes
+router.get('/', authenticate, authorize([USER_ROLES.ADMIN]), userController.getAllUsers);
+router.put('/:id/toggle-active', authenticate, authorize([USER_ROLES.ADMIN]), userController.toggleUserActive);
 
 module.exports = router;

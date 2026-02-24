@@ -226,11 +226,22 @@ const getIssueImage = async (req, res, next) => {
     }
 };
 
+const getAllIssues = async (req, res, next) => {
+    try {
+        const issues = await issueService.getAllIssues();
+        res.status(200).json({
+            success: true,
+            data: { count: issues.length, issues }
+        });
+    } catch (error) { next(error); }
+};
+
 module.exports = {
     createIssue,
     getMyIssues,
     getOrganizationQueue,
     updateIssueStatus,
     getIssueById,
-    getIssueImage
+    getIssueImage,
+    getAllIssues
 };

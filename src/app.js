@@ -7,11 +7,13 @@ const express = require('express');
 const path = require('path');
 const helmet = require('helmet');
 const cors = require('cors');
+const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const session = require('express-session');
 const sessionConfig = require('./config/session');
 const { RATE_LIMIT } = require('./config/constants');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
+const logger = require('./config/logger');
 
 // Import routes
 const authRoutes = require('./routes/auth.routes');
@@ -23,7 +25,14 @@ const organizationRoutes = require('./routes/organization.routes');
 const app = express();
 
 // ============================================
-// SECURITY MIDDLEWARE
+// LOGGING MIDDLEWARE
+// ============================================
+// Morgan HTTP access logs stream through Winston → written to rotating files
+const morganFormat = process.env.NODE_ENV === 'production' ? 'combined' : 'dev';
+app.use(morgan(morganFormat, { stream: logger.stream }));
+
+logger.info('Express application initialising…');
+
 // ============================================
 
 // Helmet - Security headers
@@ -32,11 +41,22 @@ app.use(helmet({
 }));
 
 // CORS - Cross-Origin Resource Sharing
+const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:5173'
+];
+
 const corsOptions = {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-    credentials: true, // Allow cookies
-    optionsSuccessStatus: 200
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
 };
+
 app.use(cors(corsOptions));
 
 // Rate limiting

@@ -121,8 +121,37 @@ const changePassword = async (userId, currentPassword, newPassword) => {
     }
 };
 
+/**
+ * Get all users (Admin only)
+ * @returns {Array} List of users
+ */
+const getAllUsers = async () => {
+    const [users] = await pool.query(
+        'SELECT id, email, full_name, phone, role, is_active, created_at FROM users ORDER BY created_at DESC'
+    );
+    return users;
+};
+
+/**
+ * Toggle user is_active flag (Admin only)
+ * @param {number} userId
+ * @returns {Object} Updated user
+ */
+const toggleUserActive = async (userId) => {
+    const [rows] = await pool.query('SELECT id, is_active FROM users WHERE id = ?', [userId]);
+    if (rows.length === 0) throw new AppError('User not found', 404);
+    const newActive = !rows[0].is_active;
+    await pool.query('UPDATE users SET is_active = ? WHERE id = ?', [newActive, userId]);
+    const [updated] = await pool.query(
+        'SELECT id, email, full_name, phone, role, is_active, created_at FROM users WHERE id = ?', [userId]
+    );
+    return updated[0];
+};
+
 module.exports = {
     getUserProfile,
     updateUserProfile,
-    changePassword
+    changePassword,
+    getAllUsers,
+    toggleUserActive
 };

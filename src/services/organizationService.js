@@ -78,18 +78,25 @@ const createOrganization = async (orgData) => {
  * @param {Object} updateData - Data to update
  * @returns {Object} Updated organization
  */
-const updateOrganization = async (orgId, updateData) => {
+const updateOrganization = async (orgId, updateData, currentUser = null) => {
     const { name, description, category, contact_email, contact_phone } = updateData;
 
     try {
         // Check if organization exists
         const [organizations] = await pool.query(
-            'SELECT id FROM organizations WHERE id = ?',
+            'SELECT id, user_id FROM organizations WHERE id = ?',
             [orgId]
         );
 
         if (organizations.length === 0) {
             throw new AppError('Organization not found', 404);
+        }
+
+        // Security: If not admin, must be the owner
+        if (currentUser && currentUser.role !== USER_ROLES.ADMIN) {
+            if (organizations[0].user_id !== currentUser.id) {
+                throw new AppError('Unauthorized to update this organization', 403);
+            }
         }
 
         // Build update query dynamically
@@ -277,6 +284,32 @@ const getOrganizationById = async (orgId) => {
 };
 
 /**
+ * Get current user's organization details
+ * @param {number} userId - Current user ID
+ * @returns {Object} Organization details
+ */
+const getMyOrganization = async (userId) => {
+    try {
+        const [organizations] = await pool.query(
+            `SELECT o.*, u.email, u.is_active as user_active
+             FROM organizations o
+             JOIN users u ON o.user_id = u.id
+             WHERE o.user_id = ?`,
+            [userId]
+        );
+
+        if (organizations.length === 0) {
+            throw new AppError('Organization not found for this user', 404);
+        }
+
+        return organizations[0];
+
+    } catch (error) {
+        throw error;
+    }
+};
+
+/**
  * Get public organizations list (for citizens)
  * Returns only active organizations with basic public info
  * @returns {Array} List of active organizations
@@ -297,6 +330,49 @@ const getPublicOrganizations = async () => {
     }
 };
 
+/**
+ * Delete organization and its linked user account
+ * @param {number} orgId
+ */
+const deleteOrganization = async (orgId) => {
+    const [organizations] = await pool.query('SELECT id, user_id FROM organizations WHERE id = ?', [orgId]);
+    if (organizations.length === 0) throw new AppError('Organization not found', 404);
+    const userId = organizations[0].user_id;
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+        await connection.query('DELETE FROM organizations WHERE id = ?', [orgId]);
+        await connection.query('DELETE FROM users WHERE id = ?', [userId]);
+        await connection.commit();
+    } catch (e) {
+        await connection.rollback();
+        throw e;
+    } finally {
+        connection.release();
+    }
+};
+
+/**
+ * Get all issues for an organization (for export)
+ * @param {number} orgId
+ * @returns {{orgName: string, issues: Array}}
+ */
+const getOrgExportData = async (orgId) => {
+    const [orgs] = await pool.query('SELECT name FROM organizations WHERE id = ?', [orgId]);
+    if (orgs.length === 0) throw new AppError('Organization not found', 404);
+    const orgName = orgs[0].name;
+    const [issues] = await pool.query(`
+        SELECT i.id, i.title, i.description, i.status, i.latitude, i.longitude,
+               i.created_at, i.resolved_at,
+               u.full_name AS citizen_name
+        FROM issues i
+        LEFT JOIN users u ON i.user_id = u.id
+        WHERE i.organization_id = ?
+        ORDER BY i.created_at DESC
+    `, [orgId]);
+    return { orgName, issues };
+};
+
 module.exports = {
     createOrganization,
     updateOrganization,
@@ -304,5 +380,8 @@ module.exports = {
     deactivateOrganization,
     getAllOrganizations,
     getOrganizationById,
-    getPublicOrganizations
+    getMyOrganization,
+    getPublicOrganizations,
+    deleteOrganization,
+    getOrgExportData
 };

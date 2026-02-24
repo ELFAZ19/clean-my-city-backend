@@ -50,6 +50,18 @@ router.get(
 );
 
 /**
+ * @route   GET /api/issues/all
+ * @desc    Get all issues globally
+ * @access  Private (Admin only)
+ */
+router.get(
+    '/all',
+    authenticate,
+    authorize([USER_ROLES.ADMIN]),
+    issueController.getAllIssues
+);
+
+/**
  * @route   PUT /api/issues/:id/status
  * @desc    Update issue status
  * @access  Private (Authorities only)

@@ -84,7 +84,7 @@ const createIssue = async (issueData, userId) => {
 const getUserIssues = async (userId) => {
     try {
         const [issues] = await pool.query(
-            `SELECT i.id, i.title, i.description, i.status, i.created_at, 
+            `SELECT i.id, i.title, i.description, i.status, i.created_at, i.latitude, i.longitude,
                     o.name as organization_name,
                     CASE WHEN i.image_data IS NOT NULL THEN TRUE ELSE FALSE END as has_image
              FROM issues i
@@ -115,7 +115,7 @@ const getOrganizationIssues = async (organizationId, status = null) => {
     try {
         let query = `
             SELECT i.id, i.title, i.description, i.status, i.created_at, i.latitude, i.longitude,
-                   u.full_name as reporter_name, u.phone as reporter_phone,
+                   u.full_name as reporter_name, u.email as reporter_email, u.phone as reporter_phone,
                    CASE WHEN i.image_data IS NOT NULL THEN TRUE ELSE FALSE END as has_image
             FROM issues i
             JOIN users u ON i.user_id = u.id
@@ -209,7 +209,7 @@ const getIssueById = async (issueId, userId, role) => {
                    i.created_at, i.resolved_at, i.image_mime_type, i.user_id, i.organization_id,
                    CASE WHEN i.image_data IS NOT NULL THEN TRUE ELSE FALSE END as has_image,
                    o.name as organization_name,
-                   u.full_name as reporter_name
+                   u.full_name as reporter_name, u.email as reporter_email, u.phone as reporter_phone
             FROM issues i
             JOIN organizations o ON i.organization_id = o.id
             JOIN users u ON i.user_id = u.id
@@ -294,11 +294,28 @@ const getIssueImageData = async (issueId, userId, role) => {
     }
 };
 
+const getAllIssues = async () => {
+    try {
+        const [issues] = await pool.query(`
+            SELECT i.id, i.title, i.description, i.status, i.latitude, i.longitude, i.created_at,
+                   o.name as organization_name,
+                   u.full_name as reporter_name, u.email as reporter_email, u.phone as reporter_phone,
+                   CASE WHEN i.image_data IS NOT NULL THEN TRUE ELSE FALSE END as has_image
+            FROM issues i
+            JOIN organizations o ON i.organization_id = o.id
+            JOIN users u ON i.user_id = u.id
+            ORDER BY i.created_at DESC
+        `);
+        return issues;
+    } catch (error) { throw error; }
+};
+
 module.exports = {
     createIssue,
     getUserIssues,
     getOrganizationIssues,
     updateIssueStatus,
     getIssueById,
-    getIssueImageData
+    getIssueImageData,
+    getAllIssues
 };

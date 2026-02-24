@@ -31,7 +31,7 @@ const createOrganization = async (req, res, next) => {
 const updateOrganization = async (req, res, next) => {
     try {
         const orgId = parseInt(req.params.id);
-        const organization = await organizationService.updateOrganization(orgId, req.body);
+        const organization = await organizationService.updateOrganization(orgId, req.body, req.user);
 
         res.status(200).json({
             success: true,
@@ -147,6 +147,24 @@ const getPublicOrganizations = async (req, res, next) => {
     }
 };
 
+/**
+ * Get current user's organization info
+ * GET /api/organizations/me
+ */
+const getMyOrganization = async (req, res, next) => {
+    try {
+        const organization = await organizationService.getMyOrganization(req.user.id);
+
+        res.status(200).json({
+            success: true,
+            data: { organization }
+        });
+
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     createOrganization,
     updateOrganization,
@@ -154,5 +172,53 @@ module.exports = {
     deactivateOrganization,
     getAllOrganizations,
     getOrganizationById,
-    getPublicOrganizations
+    getMyOrganization,
+    getPublicOrganizations,
+    deleteOrganization: async (req, res, next) => {
+        try {
+            const orgId = parseInt(req.params.id);
+            await organizationService.deleteOrganization(orgId);
+            res.status(200).json({ success: true, message: 'Organization deleted successfully.' });
+        } catch (error) { next(error); }
+    },
+    exportOrgReport: async (req, res, next) => {
+        try {
+            const orgId = parseInt(req.params.id);
+            const format = (req.query.format || 'csv').toLowerCase();
+            const { issues, orgName } = await organizationService.getOrgExportData(orgId);
+            const safeDate = new Date().toISOString().split('T')[0];
+            const filename = `${orgName.replace(/[^a-z0-9]/gi, '_')}_report_${safeDate}`;
+
+            if (format === 'xlsx') {
+                const ExcelJS = require('exceljs');
+                const wb = new ExcelJS.Workbook();
+                const ws = wb.addWorksheet('Issues');
+                ws.columns = [
+                    { header: 'ID',          key: 'id',           width: 8  },
+                    { header: 'Title',        key: 'title',        width: 40 },
+                    { header: 'Description',  key: 'description',  width: 60 },
+                    { header: 'Status',       key: 'status',       width: 15 },
+                    { header: 'Citizen',      key: 'citizen_name', width: 30 },
+                    { header: 'Latitude',     key: 'latitude',     width: 14 },
+                    { header: 'Longitude',    key: 'longitude',    width: 14 },
+                    { header: 'Created At',   key: 'created_at',   width: 22 },
+                    { header: 'Resolved At',  key: 'resolved_at',  width: 22 },
+                ];
+                ws.getRow(1).font = { bold: true };
+                issues.forEach(i => ws.addRow(i));
+                res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+                res.setHeader('Content-Disposition', `attachment; filename="${filename}.xlsx"`);
+                await wb.xlsx.write(res);
+                res.end();
+            } else {
+                // CSV fallback — no external dep needed
+                const cols = ['id','title','description','status','citizen_name','latitude','longitude','created_at','resolved_at'];
+                const escape = v => v == null ? '' : `"${String(v).replace(/"/g, '""')}"`;
+                const rows = [cols.join(','), ...issues.map(i => cols.map(c => escape(i[c])).join(','))];
+                res.setHeader('Content-Type', 'text/csv');
+                res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
+                res.send(rows.join('\n'));
+            }
+        } catch (error) { next(error); }
+    }
 };

@@ -1,6 +1,6 @@
-# Fix My City - Backend API
+# ♻️ Clean My City — Backend API
 
-**Production-ready backend API for city issue reporting and management system**
+**Production-ready REST API for the Clean My City civic issue reporting platform**
 
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green)](https://nodejs.org/)
 [![Express](https://img.shields.io/badge/Express-4.x-blue)](https://expressjs.com/)

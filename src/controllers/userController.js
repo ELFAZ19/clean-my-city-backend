@@ -68,8 +68,43 @@ const changePassword = async (req, res, next) => {
     }
 };
 
+/**
+ * Get all users (Admin only)
+ * GET /api/users
+ */
+const getAllUsers = async (req, res, next) => {
+    try {
+        const users = await userService.getAllUsers();
+        res.status(200).json({
+            success: true,
+            data: { count: users.length, users }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Toggle user active status (Admin only)
+ * PUT /api/users/:id/toggle-active
+ */
+const toggleUserActive = async (req, res, next) => {
+    try {
+        const userId = parseInt(req.params.id);
+        if (userId === req.user.id) {
+            return res.status(400).json({ success: false, message: 'Cannot change your own active status.' });
+        }
+        const user = await userService.toggleUserActive(userId);
+        res.status(200).json({ success: true, message: `User ${user.is_active ? 'activated' : 'deactivated'}.`, data: { user } });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getProfile,
     updateProfile,
-    changePassword
+    changePassword,
+    getAllUsers,
+    toggleUserActive
 };
