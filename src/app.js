@@ -15,7 +15,6 @@ const hpp = require('hpp');
 const xss = require('xss-clean');
 const csrf = require('csurf');
 require('dotenv').config();
-const cors = require('cors');
 
 const sessionConfig = require('./config/session');
 const { RATE_LIMIT, SECURITY } = require('./config/constants');
