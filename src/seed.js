@@ -64,7 +64,7 @@ async function seed() {
         
         // Check if admin exists
         const [existingAdmin] = await pool.query(
-            'SELECT id FROM users WHERE email = ?',
+            'SELECT id FROM users WHERE email = $1',
             [DEFAULT_ADMIN.email]
         );
 
@@ -74,10 +74,10 @@ async function seed() {
             console.log('   ✅ Admin already exists (ID: ' + adminId + ')');
         } else {
             const [adminResult] = await pool.query(
-                `INSERT INTO users (email, password_hash, full_name, role) VALUES (?, ?, ?, 'ADMIN')`,
+                `INSERT INTO users (email, password_hash, full_name, role) VALUES ($1, $2, $3, 'ADMIN') RETURNING id`,
                 [DEFAULT_ADMIN.email, adminPasswordHash, DEFAULT_ADMIN.full_name]
             );
-            adminId = adminResult.insertId;
+            adminId = adminResult[0].id;
             console.log('   ✅ Admin created (ID: ' + adminId + ')');
         }
 
@@ -91,7 +91,7 @@ async function seed() {
         for (const auth of SAMPLE_AUTHORITIES) {
             // Check if authority user exists
             const [existingUser] = await pool.query(
-                'SELECT id FROM users WHERE email = ?',
+                'SELECT id FROM users WHERE email = $1',
                 [auth.login_email]
             );
 
@@ -102,22 +102,22 @@ async function seed() {
                 
                 // Fix for legacy role migration (ORGANIZATION -> AUTHORITY)
                 await pool.query(
-                    "UPDATE users SET role = 'AUTHORITY' WHERE id = ? AND role = 'ORGANIZATION'",
+                    "UPDATE users SET role = 'AUTHORITY' WHERE id = $1 AND role = 'ORGANIZATION'",
                     [userId]
                 );
             } else {
                 // Create authority user with AUTHORITY role
                 const authPasswordHash = await bcrypt.hash(auth.login_password, saltRounds);
                 const [userResult] = await pool.query(
-                    `INSERT INTO users (email, password_hash, full_name, role) VALUES (?, ?, ?, 'AUTHORITY')`,
+                    `INSERT INTO users (email, password_hash, full_name, role) VALUES ($1, $2, $3, 'AUTHORITY') RETURNING id`,
                     [auth.login_email, authPasswordHash, auth.name]
                 );
-                userId = userResult.insertId;
+                userId = userResult[0].id;
             }
 
             // Check if organization exists
             const [existingOrg] = await pool.query(
-                'SELECT id FROM organizations WHERE user_id = ?',
+                'SELECT id FROM organizations WHERE user_id = $1',
                 [userId]
             );
 
@@ -126,10 +126,10 @@ async function seed() {
             } else {
                 const [orgResult] = await pool.query(
                     `INSERT INTO organizations (user_id, name, description, category, contact_email, contact_phone) 
-                     VALUES (?, ?, ?, ?, ?, ?)`,
+                     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
                     [userId, auth.name, auth.description, auth.category, auth.contact_email, auth.contact_phone]
                 );
-                console.log(`   ✅ ${auth.name} created (ID: ${orgResult.insertId})`);
+                console.log(`   ✅ ${auth.name} created (ID: ${orgResult[0].id})`);
             }
             console.log(`      📧 Login: ${auth.login_email}`);
             console.log(`      🔑 Password: ${auth.login_password}`);

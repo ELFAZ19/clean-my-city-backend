@@ -16,7 +16,7 @@ const { AppError } = require('../middleware/errorHandler');
 const getUserProfile = async (userId) => {
     try {
         const [users] = await pool.query(
-            'SELECT id, email, full_name, phone, role, is_active, created_at FROM users WHERE id = ?',
+            'SELECT id, email, full_name, phone, role, is_active, created_at FROM users WHERE id = $1',
             [userId]
         );
 
@@ -41,16 +41,17 @@ const updateUserProfile = async (userId, updateData) => {
     const { full_name, phone } = updateData;
 
     try {
-        // Build update query dynamically
+        // Build update query dynamically with numbered placeholders
         const updates = [];
         const values = [];
+        let paramIdx = 1;
 
         if (full_name !== undefined) {
-            updates.push('full_name = ?');
+            updates.push(`full_name = $${paramIdx++}`);
             values.push(full_name);
         }
         if (phone !== undefined) {
-            updates.push('phone = ?');
+            updates.push(`phone = $${paramIdx++}`);
             values.push(phone);
         }
 
@@ -61,13 +62,13 @@ const updateUserProfile = async (userId, updateData) => {
         values.push(userId);
 
         await pool.query(
-            `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+            `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramIdx}`,
             values
         );
 
         // Fetch updated user
         const [users] = await pool.query(
-            'SELECT id, email, full_name, phone, role, is_active, created_at FROM users WHERE id = ?',
+            'SELECT id, email, full_name, phone, role, is_active, created_at FROM users WHERE id = $1',
             [userId]
         );
 
@@ -89,7 +90,7 @@ const changePassword = async (userId, currentPassword, newPassword) => {
     try {
         // Fetch user with password hash
         const [users] = await pool.query(
-            'SELECT id, password_hash FROM users WHERE id = ?',
+            'SELECT id, password_hash FROM users WHERE id = $1',
             [userId]
         );
 
@@ -110,7 +111,7 @@ const changePassword = async (userId, currentPassword, newPassword) => {
 
         // Update password
         await pool.query(
-            'UPDATE users SET password_hash = ? WHERE id = ?',
+            'UPDATE users SET password_hash = $1 WHERE id = $2',
             [newPasswordHash, userId]
         );
 
@@ -138,12 +139,12 @@ const getAllUsers = async () => {
  * @returns {Object} Updated user
  */
 const toggleUserActive = async (userId) => {
-    const [rows] = await pool.query('SELECT id, is_active FROM users WHERE id = ?', [userId]);
+    const [rows] = await pool.query('SELECT id, is_active FROM users WHERE id = $1', [userId]);
     if (rows.length === 0) throw new AppError('User not found', 404);
     const newActive = !rows[0].is_active;
-    await pool.query('UPDATE users SET is_active = ? WHERE id = ?', [newActive, userId]);
+    await pool.query('UPDATE users SET is_active = $1 WHERE id = $2', [newActive, userId]);
     const [updated] = await pool.query(
-        'SELECT id, email, full_name, phone, role, is_active, created_at FROM users WHERE id = ?', [userId]
+        'SELECT id, email, full_name, phone, role, is_active, created_at FROM users WHERE id = $1', [userId]
     );
     return updated[0];
 };

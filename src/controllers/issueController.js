@@ -123,7 +123,7 @@ const getOrganizationQueue = async (req, res, next) => {
     try {
         // Get organization ID for current user
         const [organizations] = await pool.query(
-            'SELECT id FROM organizations WHERE user_id = ?',
+            'SELECT id FROM organizations WHERE user_id = $1',
             [req.user.id]
         );
 
@@ -162,7 +162,7 @@ const updateIssueStatus = async (req, res, next) => {
     try {
         // Get organization ID for current user
         const [organizations] = await pool.query(
-            'SELECT id FROM organizations WHERE user_id = ?',
+            'SELECT id FROM organizations WHERE user_id = $1',
             [req.user.id]
         );
 
@@ -257,7 +257,7 @@ const getOrganizationAnalytics = async (req, res, next) => {
         }
 
         const [organizations] = await pool.query(
-            'SELECT id FROM organizations WHERE user_id = ?',
+            'SELECT id FROM organizations WHERE user_id = $1',
             [req.user.id]
         );
 

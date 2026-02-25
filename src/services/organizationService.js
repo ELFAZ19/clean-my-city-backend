@@ -23,7 +23,7 @@ const createOrganization = async (orgData) => {
 
         // Check if email already exists
         const [existingUsers] = await connection.query(
-            'SELECT id FROM users WHERE email = ?',
+            'SELECT id FROM users WHERE email = $1',
             [email]
         );
 
@@ -38,7 +38,7 @@ const createOrganization = async (orgData) => {
         // Create user account for organization (authority)
         const [userResult] = await connection.query(
             `INSERT INTO users (email, password_hash, full_name, role)
-             VALUES (?, ?, ?, ?)`,
+             VALUES ($1, $2, $3, $4) RETURNING id`,
             [email, password_hash, name, USER_ROLES.AUTHORITY]
         );
 
@@ -47,7 +47,7 @@ const createOrganization = async (orgData) => {
         // Create organization
         const [orgResult] = await connection.query(
             `INSERT INTO organizations (user_id, name, description, category, contact_email, contact_phone)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
             [userId, name, description || null, category, contact_email, contact_phone || null]
         );
 
@@ -58,7 +58,7 @@ const createOrganization = async (orgData) => {
             `SELECT o.*, u.email, u.is_active as user_active
              FROM organizations o
              JOIN users u ON o.user_id = u.id
-             WHERE o.id = ?`,
+             WHERE o.id = $1`,
             [orgResult.insertId]
         );
 
@@ -84,7 +84,7 @@ const updateOrganization = async (orgId, updateData, currentUser = null) => {
     try {
         // Check if organization exists
         const [organizations] = await pool.query(
-            'SELECT id, user_id FROM organizations WHERE id = ?',
+            'SELECT id, user_id FROM organizations WHERE id = $1',
             [orgId]
         );
 
@@ -99,28 +99,29 @@ const updateOrganization = async (orgId, updateData, currentUser = null) => {
             }
         }
 
-        // Build update query dynamically
+        // Build update query dynamically with numbered placeholders
         const updates = [];
         const values = [];
+        let paramIdx = 1;
 
         if (name !== undefined) {
-            updates.push('name = ?');
+            updates.push(`name = $${paramIdx++}`);
             values.push(name);
         }
         if (description !== undefined) {
-            updates.push('description = ?');
+            updates.push(`description = $${paramIdx++}`);
             values.push(description);
         }
         if (category !== undefined) {
-            updates.push('category = ?');
+            updates.push(`category = $${paramIdx++}`);
             values.push(category);
         }
         if (contact_email !== undefined) {
-            updates.push('contact_email = ?');
+            updates.push(`contact_email = $${paramIdx++}`);
             values.push(contact_email);
         }
         if (contact_phone !== undefined) {
-            updates.push('contact_phone = ?');
+            updates.push(`contact_phone = $${paramIdx++}`);
             values.push(contact_phone);
         }
 
@@ -131,7 +132,7 @@ const updateOrganization = async (orgId, updateData, currentUser = null) => {
         values.push(orgId);
 
         await pool.query(
-            `UPDATE organizations SET ${updates.join(', ')} WHERE id = ?`,
+            `UPDATE organizations SET ${updates.join(', ')} WHERE id = $${paramIdx}`,
             values
         );
 
@@ -140,7 +141,7 @@ const updateOrganization = async (orgId, updateData, currentUser = null) => {
             `SELECT o.*, u.email, u.is_active as user_active
              FROM organizations o
              JOIN users u ON o.user_id = u.id
-             WHERE o.id = ?`,
+             WHERE o.id = $1`,
             [orgId]
         );
 
@@ -160,7 +161,7 @@ const activateOrganization = async (orgId) => {
     try {
         // Get organization and user_id
         const [organizations] = await pool.query(
-            'SELECT id, user_id FROM organizations WHERE id = ?',
+            'SELECT id, user_id FROM organizations WHERE id = $1',
             [orgId]
         );
 
@@ -171,15 +172,15 @@ const activateOrganization = async (orgId) => {
         const userId = organizations[0].user_id;
 
         // Activate both organization and user account
-        await pool.query('UPDATE organizations SET is_active = TRUE WHERE id = ?', [orgId]);
-        await pool.query('UPDATE users SET is_active = TRUE WHERE id = ?', [userId]);
+        await pool.query('UPDATE organizations SET is_active = TRUE WHERE id = $1', [orgId]);
+        await pool.query('UPDATE users SET is_active = TRUE WHERE id = $1', [userId]);
 
         // Fetch updated organization
         const [updatedOrgs] = await pool.query(
             `SELECT o.*, u.email, u.is_active as user_active
              FROM organizations o
              JOIN users u ON o.user_id = u.id
-             WHERE o.id = ?`,
+             WHERE o.id = $1`,
             [orgId]
         );
 
@@ -199,7 +200,7 @@ const deactivateOrganization = async (orgId) => {
     try {
         // Get organization and user_id
         const [organizations] = await pool.query(
-            'SELECT id, user_id FROM organizations WHERE id = ?',
+            'SELECT id, user_id FROM organizations WHERE id = $1',
             [orgId]
         );
 
@@ -210,15 +211,15 @@ const deactivateOrganization = async (orgId) => {
         const userId = organizations[0].user_id;
 
         // Deactivate both organization and user account
-        await pool.query('UPDATE organizations SET is_active = FALSE WHERE id = ?', [orgId]);
-        await pool.query('UPDATE users SET is_active = FALSE WHERE id = ?', [userId]);
+        await pool.query('UPDATE organizations SET is_active = FALSE WHERE id = $1', [orgId]);
+        await pool.query('UPDATE users SET is_active = FALSE WHERE id = $1', [userId]);
 
         // Fetch updated organization
         const [updatedOrgs] = await pool.query(
             `SELECT o.*, u.email, u.is_active as user_active
              FROM organizations o
              JOIN users u ON o.user_id = u.id
-             WHERE o.id = ?`,
+             WHERE o.id = $1`,
             [orgId]
         );
 
@@ -268,7 +269,7 @@ const getOrganizationById = async (orgId) => {
             `SELECT o.*, u.email, u.is_active as user_active
              FROM organizations o
              JOIN users u ON o.user_id = u.id
-             WHERE o.id = ?`,
+             WHERE o.id = $1`,
             [orgId]
         );
 
@@ -294,7 +295,7 @@ const getMyOrganization = async (userId) => {
             `SELECT o.*, u.email, u.is_active as user_active
              FROM organizations o
              JOIN users u ON o.user_id = u.id
-             WHERE o.user_id = ?`,
+             WHERE o.user_id = $1`,
             [userId]
         );
 
@@ -335,14 +336,14 @@ const getPublicOrganizations = async () => {
  * @param {number} orgId
  */
 const deleteOrganization = async (orgId) => {
-    const [organizations] = await pool.query('SELECT id, user_id FROM organizations WHERE id = ?', [orgId]);
+    const [organizations] = await pool.query('SELECT id, user_id FROM organizations WHERE id = $1', [orgId]);
     if (organizations.length === 0) throw new AppError('Organization not found', 404);
     const userId = organizations[0].user_id;
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
-        await connection.query('DELETE FROM organizations WHERE id = ?', [orgId]);
-        await connection.query('DELETE FROM users WHERE id = ?', [userId]);
+        await connection.query('DELETE FROM organizations WHERE id = $1', [orgId]);
+        await connection.query('DELETE FROM users WHERE id = $1', [userId]);
         await connection.commit();
     } catch (e) {
         await connection.rollback();
@@ -358,7 +359,7 @@ const deleteOrganization = async (orgId) => {
  * @returns {{orgName: string, issues: Array}}
  */
 const getOrgExportData = async (orgId) => {
-    const [orgs] = await pool.query('SELECT name FROM organizations WHERE id = ?', [orgId]);
+    const [orgs] = await pool.query('SELECT name FROM organizations WHERE id = $1', [orgId]);
     if (orgs.length === 0) throw new AppError('Organization not found', 404);
     const orgName = orgs[0].name;
     const [issues] = await pool.query(`
@@ -367,7 +368,7 @@ const getOrgExportData = async (orgId) => {
                u.full_name AS citizen_name
         FROM issues i
         LEFT JOIN users u ON i.user_id = u.id
-        WHERE i.organization_id = ?
+        WHERE i.organization_id = $1
         ORDER BY i.created_at DESC
     `, [orgId]);
     return { orgName, issues };

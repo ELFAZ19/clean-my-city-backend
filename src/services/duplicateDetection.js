@@ -71,9 +71,9 @@ const findDuplicateIssue = async (issueData) => {
         const [potentialDuplicates] = await pool.query(
             `SELECT id, title, description, latitude, longitude, status, created_at
              FROM issues
-             WHERE organization_id = ?
+             WHERE organization_id = $1
                AND status != 'RESOLVED'
-               AND created_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+               AND created_at >= NOW() - INTERVAL '1 hour' * $2
              ORDER BY created_at DESC`,
             [organization_id, timeWindowHours]
         );

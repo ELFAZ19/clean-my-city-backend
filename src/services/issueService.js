@@ -20,7 +20,7 @@ const createIssue = async (issueData, userId) => {
     try {
         // Check if organization exists and is active
         const [organizations] = await pool.query(
-            'SELECT id, is_active FROM organizations WHERE id = ?',
+            'SELECT id, is_active FROM organizations WHERE id = $1',
             [organization_id]
         );
 
@@ -53,7 +53,7 @@ const createIssue = async (issueData, userId) => {
         // 2. Create new issue
         const [result] = await pool.query(
             `INSERT INTO issues (title, description, status, latitude, longitude, image_data, image_mime_type, user_id, organization_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
             [title, description, ISSUE_STATUS.PENDING, latitude || null, longitude || null, image_buffer || null, image_mime_type || null, userId, organization_id]
         );
 
@@ -61,7 +61,7 @@ const createIssue = async (issueData, userId) => {
 
         // 3. Fetch created issue (excluding heavy blob data for performance)
         const [issues] = await pool.query(
-            'SELECT id, title, description, status, latitude, longitude, created_at FROM issues WHERE id = ?',
+            'SELECT id, title, description, status, latitude, longitude, created_at FROM issues WHERE id = $1',
             [newIssueId]
         );
 
@@ -89,7 +89,7 @@ const getUserIssues = async (userId) => {
                     CASE WHEN i.image_data IS NOT NULL THEN TRUE ELSE FALSE END as has_image
              FROM issues i
              JOIN organizations o ON i.organization_id = o.id
-             WHERE i.user_id = ?
+             WHERE i.user_id = $1
              ORDER BY i.created_at DESC`,
             [userId]
         );
@@ -113,20 +113,22 @@ const getUserIssues = async (userId) => {
  */
 const getOrganizationIssues = async (organizationId, status = null) => {
     try {
+        const params = [organizationId];
+        let paramIdx = 2;
+
         let query = `
             SELECT i.id, i.title, i.description, i.status, i.created_at, i.latitude, i.longitude,
                    u.full_name as reporter_name, u.email as reporter_email, u.phone as reporter_phone,
                    CASE WHEN i.image_data IS NOT NULL THEN TRUE ELSE FALSE END as has_image
             FROM issues i
             JOIN users u ON i.user_id = u.id
-            WHERE i.organization_id = ?
+            WHERE i.organization_id = $1
         `;
-        
-        const params = [organizationId];
 
         if (status) {
-            query += ' AND i.status = ?';
+            query += ` AND i.status = $${paramIdx}`;
             params.push(status);
+            paramIdx++;
         }
 
         query += ' ORDER BY i.created_at DESC';
@@ -155,7 +157,7 @@ const updateIssueStatus = async (issueId, status, organizationId) => {
     try {
         // Verify issue belongs to organization
         const [issues] = await pool.query(
-            'SELECT id, status FROM issues WHERE id = ? AND organization_id = ?',
+            'SELECT id, status FROM issues WHERE id = $1 AND organization_id = $2',
             [issueId, organizationId]
         );
 
@@ -177,12 +179,12 @@ const updateIssueStatus = async (issueId, status, organizationId) => {
         // Update status
         if (status === ISSUE_STATUS.RESOLVED) {
              await pool.query(
-                'UPDATE issues SET status = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?',
+                'UPDATE issues SET status = $1, resolved_at = CURRENT_TIMESTAMP WHERE id = $2',
                 [status, issueId]
             );
         } else {
              await pool.query(
-                'UPDATE issues SET status = ? WHERE id = ?',
+                'UPDATE issues SET status = $1 WHERE id = $2',
                 [status, issueId]
             );
         }
@@ -213,7 +215,7 @@ const getIssueById = async (issueId, userId, role) => {
             FROM issues i
             JOIN organizations o ON i.organization_id = o.id
             JOIN users u ON i.user_id = u.id
-            WHERE i.id = ?
+            WHERE i.id = $1
         `;
 
         const [issues] = await pool.query(query, [issueId]);
@@ -231,7 +233,7 @@ const getIssueById = async (issueId, userId, role) => {
         
         // For authority (organization), user_id links to organization
         if (role === USER_ROLES.AUTHORITY) {
-             const [orgRequest] = await pool.query('SELECT id FROM organizations WHERE user_id = ?', [userId]);
+             const [orgRequest] = await pool.query('SELECT id FROM organizations WHERE user_id = $1', [userId]);
              if (orgRequest.length > 0 && issue.organization_id !== orgRequest[0].id) {
                  throw new AppError('Access denied. Issue not assigned to your authority.', 403);
              }
@@ -258,7 +260,7 @@ const getIssueById = async (issueId, userId, role) => {
 const getIssueImageData = async (issueId, userId, role) => {
     try {
         const [issues] = await pool.query(
-            'SELECT image_data, image_mime_type, user_id, organization_id FROM issues WHERE id = ?',
+            'SELECT image_data, image_mime_type, user_id, organization_id FROM issues WHERE id = $1',
             [issueId]
         );
 
@@ -278,7 +280,7 @@ const getIssueImageData = async (issueId, userId, role) => {
         }
         
         if (role === USER_ROLES.AUTHORITY) {
-             const [orgRequest] = await pool.query('SELECT id FROM organizations WHERE user_id = ?', [userId]);
+             const [orgRequest] = await pool.query('SELECT id FROM organizations WHERE user_id = $1', [userId]);
              if (orgRequest.length > 0 && issue.organization_id !== orgRequest[0].id) {
                  throw new AppError('Access denied.', 403);
              }
@@ -313,61 +315,78 @@ const getAllIssues = async () => {
 /**
  * Build analytics for a given WHERE clause and range
  * Used for both global (admin) and per-organization analytics
+ *
+ * NOTE: PostgreSQL version — uses numbered $N placeholders.
+ * The base params always occupy $1–$4 (or $1–$3 + range).
+ * Extra params (e.g. organization_id) are appended after that.
  */
-const buildAnalytics = async ({ rangeDays, whereSql = '', params = [] }) => {
+const buildAnalytics = async ({ rangeDays, extraWhereSql = '', extraParams = [] }) => {
     const range = Number.isFinite(rangeDays) && rangeDays > 0 ? rangeDays : 30;
 
-    // 1) Timeseries: issues created per day with status breakdown
+    // ── 1) Timeseries: issues created per day with status breakdown ──
+    // Base params: $1=PENDING, $2=IN_PROGRESS, $3=RESOLVED, $4=range
+    // Extra params start at $5
+    const tsExtra = extraWhereSql
+        ? extraWhereSql.replace(/\$X(\d+)/g, (_, n) => `$${4 + Number(n)}`)
+        : '';
     const [timeseries] = await pool.query(
-        `
-         SELECT 
-           DATE(created_at) as day,
+        `SELECT
+           created_at::date as day,
            COUNT(*) as total,
-           SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as pending,
-           SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as in_progress,
-           SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as resolved
+           SUM(CASE WHEN status = $1 THEN 1 ELSE 0 END) as pending,
+           SUM(CASE WHEN status = $2 THEN 1 ELSE 0 END) as in_progress,
+           SUM(CASE WHEN status = $3 THEN 1 ELSE 0 END) as resolved
          FROM issues
-         WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-           ${whereSql}
-         GROUP BY DATE(created_at)
-         ORDER BY day
-        `,
-        [ISSUE_STATUS.PENDING, ISSUE_STATUS.IN_PROGRESS, ISSUE_STATUS.RESOLVED, range, ...params]
+         WHERE created_at >= CURRENT_DATE - INTERVAL '1 day' * $4
+           ${tsExtra}
+         GROUP BY created_at::date
+         ORDER BY day`,
+        [ISSUE_STATUS.PENDING, ISSUE_STATUS.IN_PROGRESS, ISSUE_STATUS.RESOLVED, range, ...extraParams]
     );
 
-    // 2) Resolved by organization category
+    // ── 2) Resolved by organization category ──
+    // Base params: $1=RESOLVED, $2=range
+    // Extra params start at $3
+    const catExtra = extraWhereSql
+        ? extraWhereSql
+              .replace(/created_at/g, 'i.resolved_at')
+              .replace(/issues /g, 'i ')
+              .replace(/\$X(\d+)/g, (_, n) => `$${2 + Number(n)}`)
+        : '';
     const [byCategory] = await pool.query(
-        `
-         SELECT 
+        `SELECT
            COALESCE(o.category, 'Other') as category,
            COUNT(*) as resolved
          FROM issues i
          JOIN organizations o ON i.organization_id = o.id
-         WHERE i.status = ?
+         WHERE i.status = $1
            AND i.resolved_at IS NOT NULL
-           AND i.resolved_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-           ${whereSql ? whereSql.replace(/created_at/g, 'i.resolved_at').replace(/issues /g, 'i ') : ''}
+           AND i.resolved_at >= CURRENT_DATE - INTERVAL '1 day' * $2
+           ${catExtra}
          GROUP BY COALESCE(o.category, 'Other')
-         ORDER BY resolved DESC
-        `,
-        [ISSUE_STATUS.RESOLVED, range, ...params]
+         ORDER BY resolved DESC`,
+        [ISSUE_STATUS.RESOLVED, range, ...extraParams]
     );
 
-    // 3) SLA buckets based on resolution time in hours
+    // ── 3) SLA buckets based on resolution time in hours ──
+    // Base params: $1=RESOLVED, $2=range
+    const slaExtra = extraWhereSql
+        ? extraWhereSql
+              .replace(/created_at/g, 'resolved_at')
+              .replace(/\$X(\d+)/g, (_, n) => `$${2 + Number(n)}`)
+        : '';
     const [slaRows] = await pool.query(
-        `
-         SELECT
-           SUM(CASE WHEN TIMESTAMPDIFF(HOUR, created_at, resolved_at) < 4 THEN 1 ELSE 0 END) as lt4,
-           SUM(CASE WHEN TIMESTAMPDIFF(HOUR, created_at, resolved_at) BETWEEN 4 AND 11 THEN 1 ELSE 0 END) as h4_12,
-           SUM(CASE WHEN TIMESTAMPDIFF(HOUR, created_at, resolved_at) BETWEEN 12 AND 23 THEN 1 ELSE 0 END) as h12_24,
-           SUM(CASE WHEN TIMESTAMPDIFF(HOUR, created_at, resolved_at) >= 24 THEN 1 ELSE 0 END) as gt24
+        `SELECT
+           SUM(CASE WHEN EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600 < 4 THEN 1 ELSE 0 END) as lt4,
+           SUM(CASE WHEN EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600 BETWEEN 4 AND 11 THEN 1 ELSE 0 END) as h4_12,
+           SUM(CASE WHEN EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600 BETWEEN 12 AND 23 THEN 1 ELSE 0 END) as h12_24,
+           SUM(CASE WHEN EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600 >= 24 THEN 1 ELSE 0 END) as gt24
          FROM issues
-         WHERE status = ?
+         WHERE status = $1
            AND resolved_at IS NOT NULL
-           AND resolved_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-           ${whereSql ? whereSql.replace(/created_at/g, 'resolved_at') : ''}
-        `,
-        [ISSUE_STATUS.RESOLVED, range, ...params]
+           AND resolved_at >= CURRENT_DATE - INTERVAL '1 day' * $2
+           ${slaExtra}`,
+        [ISSUE_STATUS.RESOLVED, range, ...extraParams]
     );
 
     const slaRow = slaRows[0] || { lt4: 0, h4_12: 0, h12_24: 0, gt24: 0 };
@@ -378,21 +397,23 @@ const buildAnalytics = async ({ rangeDays, whereSql = '', params = [] }) => {
         { name: '> 24h', value: Number(slaRow.gt24 || 0) },
     ];
 
-    // 4) Backlog: open issues age vs simple "priority weight" per status
+    // ── 4) Backlog: open issues age vs simple "priority weight" per status ──
+    // Base params: $1=PENDING, $2=IN_PROGRESS, $3=RESOLVED
+    const blExtra = extraWhereSql
+        ? extraWhereSql.replace(/\$X(\d+)/g, (_, n) => `$${3 + Number(n)}`)
+        : '';
     const [backlog] = await pool.query(
-        `
-         SELECT 
-           DATEDIFF(CURDATE(), created_at) as age_days,
-           CASE 
-             WHEN status = ? THEN 1
-             WHEN status = ? THEN 2
+        `SELECT
+           (CURRENT_DATE - created_at::date) as age_days,
+           CASE
+             WHEN status = $1 THEN 1
+             WHEN status = $2 THEN 2
              ELSE 0
            END as weight
          FROM issues
-         WHERE status <> ?
-           ${whereSql}
-        `,
-        [ISSUE_STATUS.PENDING, ISSUE_STATUS.IN_PROGRESS, ISSUE_STATUS.RESOLVED, ...params]
+         WHERE status <> $3
+           ${blExtra}`,
+        [ISSUE_STATUS.PENDING, ISSUE_STATUS.IN_PROGRESS, ISSUE_STATUS.RESOLVED, ...extraParams]
     );
 
     const backlogScatter = backlog.map(row => ({
@@ -414,8 +435,9 @@ const getGlobalAnalytics = async (rangeDays) => {
 };
 
 const getOrganizationAnalytics = async (organizationId, rangeDays) => {
-    const whereSql = ' AND organization_id = ?';
-    return buildAnalytics({ rangeDays, whereSql, params: [organizationId] });
+    // $X1 is a placeholder that buildAnalytics will renumber per-query
+    const extraWhereSql = ' AND organization_id = $X1';
+    return buildAnalytics({ rangeDays, extraWhereSql, extraParams: [organizationId] });
 };
 
 module.exports = {

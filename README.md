@@ -4,7 +4,7 @@
 
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green)](https://nodejs.org/)
 [![Express](https://img.shields.io/badge/Express-4.x-blue)](https://expressjs.com/)
-[![MySQL](https://img.shields.io/badge/MySQL-8.0%2B-orange)](https://www.mysql.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14%2B-blue)](https://www.postgresql.org/)
 [![License](https://img.shields.io/badge/License-ISC-yellow)](https://opensource.org/licenses/ISC)
 
 ---
@@ -46,7 +46,7 @@ Fix My City is a comprehensive city issue reporting and management system that a
 - ✅ Server-side session management (7-day expiration)
 - ✅ Role-based access control (CITIZEN, ORGANIZATION, ADMIN)
 - ✅ Secure password hashing with bcrypt
-- ✅ Session persistence in MySQL database
+- ✅ Session persistence in PostgreSQL database
 
 ### Issue Management
 - ✅ Create issues with optional location (GPS coordinates)
@@ -79,9 +79,9 @@ Issues are considered duplicates if **ALL** criteria match:
 |-----------|-----------|
 | **Runtime** | Node.js 18+ |
 | **Framework** | Express.js 4.x |
-| **Database** | MySQL 8.0+ |
+| **Database** | PostgreSQL 14+ |
 | **Authentication** | JWT + express-session |
-| **Session Store** | express-mysql-session |
+| **Session Store** | connect-pg-simple |
 | **Password Hashing** | bcrypt |
 | **Validation** | express-validator |
 | **Text Similarity** | string-similarity (Dice coefficient) |
@@ -95,7 +95,7 @@ Issues are considered duplicates if **ALL** criteria match:
 ### Prerequisites
 
 - Node.js 18 or higher
-- MySQL 8.0 or higher
+- PostgreSQL 14 or higher
 - npm or yarn package manager
 
 ### Steps
@@ -133,8 +133,8 @@ HOST=localhost
 
 # Database
 DB_HOST=localhost
-DB_PORT=3306
-DB_USER=1234
+DB_PORT=5432
+DB_USER=postgres
 DB_PASSWORD=your_password
 DB_NAME=fix_my_city
 
@@ -167,16 +167,16 @@ DUPLICATE_SIMILARITY_THRESHOLD=0.7
 ### 1. Create Database
 
 ```sql
-CREATE DATABASE fix_my_city CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE fix_my_city;
 ```
 
 ### 2. Run Schema
 
 ```bash
-mysql -u root -p fix_my_city < database/schema.sql
+psql -U postgres -d fix_my_city -f database/schema.sql
 ```
 
-Or manually execute the SQL file in your MySQL client.
+Or manually execute the SQL file in your PostgreSQL client (pgAdmin, DBeaver, etc.).
 
 ### 3. Database Schema
 

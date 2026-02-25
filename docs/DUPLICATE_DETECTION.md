@@ -28,7 +28,7 @@ An issue is considered a **duplicate** if and only if **ALL** of the following c
 - **Purpose**: Only recent issues are considered
 - **Default**: 24 hours (configurable)
 - **Rationale**: Issues older than the time window are likely different occurrences
-- **Implementation**: `created_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)`
+- **Implementation**: `created_at >= NOW() - INTERVAL '48 hours'`
 
 ### 4. Location Proximity ✓
 - **Purpose**: Issues must be geographically close
@@ -377,7 +377,7 @@ FUNCTION createIssue(issueData, userId):
    INDEX idx_location (latitude, longitude)
    ```
    - Improves geospatial queries
-   - Future enhancement: Use MySQL spatial data types
+   - Future enhancement: Use PostgreSQL PostGIS for native spatial queries
 
 3. **Query Limit**
    - Only fetch issues from the last 48 hours

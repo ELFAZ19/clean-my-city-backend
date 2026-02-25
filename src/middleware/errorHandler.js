@@ -32,14 +32,14 @@ const errorHandler = (err, req, res, next) => {
         ip: req.ip
     });
 
-    // MySQL duplicate entry error
-    if (err.code === 'ER_DUP_ENTRY') {
+    // PostgreSQL unique violation (duplicate entry)
+    if (err.code === '23505') {
         message = 'Duplicate entry. This record already exists.';
         statusCode = 409;
     }
 
-    // MySQL foreign key constraint error
-    if (err.code === 'ER_NO_REFERENCED_ROW_2') {
+    // PostgreSQL foreign key constraint violation
+    if (err.code === '23503') {
         message = 'Referenced record does not exist.';
         statusCode = 400;
     }

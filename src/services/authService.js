@@ -20,7 +20,7 @@ const register = async (userData) => {
     try {
         // Check if user already exists
         const [existingUsers] = await pool.query(
-            'SELECT id FROM users WHERE email = ?',
+            'SELECT id FROM users WHERE email = $1',
             [email]
         );
 
@@ -34,13 +34,13 @@ const register = async (userData) => {
         // Insert user
         const [result] = await pool.query(
             `INSERT INTO users (email, password_hash, full_name, phone, role)
-             VALUES (?, ?, ?, ?, ?)`,
+             VALUES ($1, $2, $3, $4, $5) RETURNING id`,
             [email, password_hash, full_name, phone || null, role]
         );
 
         // Fetch created user
         const [users] = await pool.query(
-            'SELECT id, email, full_name, phone, role, is_active, created_at FROM users WHERE id = ?',
+            'SELECT id, email, full_name, phone, role, is_active, created_at FROM users WHERE id = $1',
             [result.insertId]
         );
 
@@ -62,7 +62,7 @@ const login = async (email, password, session) => {
     try {
         // Find user by email
         const [users] = await pool.query(
-            'SELECT id, email, password_hash, full_name, phone, role, is_active FROM users WHERE email = ?',
+            'SELECT id, email, password_hash, full_name, phone, role, is_active FROM users WHERE email = $1',
             [email]
         );
 

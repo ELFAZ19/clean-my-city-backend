@@ -1,7 +1,7 @@
 /**
  * File Upload Configuration
  * Multer configuration for handling image uploads
- * Stores files in memory to be saved as BLOBs in MySQL
+ * Stores files in memory to be saved as BYTEA in PostgreSQL
  */
 
 const multer = require('multer');
