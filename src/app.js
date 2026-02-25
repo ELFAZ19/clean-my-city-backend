@@ -14,6 +14,8 @@ const cookieParser = require('cookie-parser');
 const hpp = require('hpp');
 const xss = require('xss-clean');
 const csrf = require('csurf');
+require('dotenv').config();
+const cors = require('cors');
 
 const sessionConfig = require('./config/session');
 const { RATE_LIMIT, SECURITY } = require('./config/constants');
@@ -64,13 +66,15 @@ app.use(helmet({
 }));
 
 // 2. CORS - Cross-Origin Resource Sharing
-const allowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:5173'
-];
+
+// Read allowed origins from .env, split by comma
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+  : [];
 
 app.use(cors({
     origin: function (origin, callback) {
+        // Allow requests with no origin (like Postman) or if origin is in allowedOrigins
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
