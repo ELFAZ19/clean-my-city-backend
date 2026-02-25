@@ -67,17 +67,18 @@ app.use(helmet({
 // 2. CORS - Cross-Origin Resource Sharing
 
 // Read allowed origins from .env, split by comma
+// Example in .env: CORS_ORIGIN=https://clean-my-city-frontend.onrender.com,http://localhost:5173
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
   : [];
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like Postman) or if origin is in allowedOrigins
+        // If origin is undefined (like Postman or curl), you can allow it, else check against allowedOrigins
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            callback(new Error('Not allowed by CORS'));
+            callback(new Error(`CORS policy: This origin (${origin}) is not allowed.`));
         }
     },
     credentials: true,
