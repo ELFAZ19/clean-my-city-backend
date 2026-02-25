@@ -115,8 +115,8 @@ const csrfProtection = csrf({
     cookie: {
         key: SECURITY.CSRF_COOKIE_NAME,
         httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? 'strict' : 'lax'
+        secure: isProduction, // must be true for sameSite: 'none' in HTTPS
+        sameSite: isProduction ? 'none' : 'lax'
     } 
 });
 
