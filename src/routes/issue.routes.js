@@ -62,6 +62,30 @@ router.get(
 );
 
 /**
+ * @route   GET /api/issues/analytics/global
+ * @desc    Aggregated analytics across all issues (admin)
+ * @access  Private (Admin only)
+ */
+router.get(
+    '/analytics/global',
+    authenticate,
+    authorize([USER_ROLES.ADMIN]),
+    issueController.getGlobalAnalytics
+);
+
+/**
+ * @route   GET /api/issues/analytics/organization
+ * @desc    Aggregated analytics for current authority's organization
+ * @access  Private (Authorities only)
+ */
+router.get(
+    '/analytics/organization',
+    authenticate,
+    authorize([USER_ROLES.AUTHORITY]),
+    issueController.getOrganizationAnalytics
+);
+
+/**
  * @route   PUT /api/issues/:id/status
  * @desc    Update issue status
  * @access  Private (Authorities only)

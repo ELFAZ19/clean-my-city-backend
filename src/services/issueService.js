@@ -310,6 +310,114 @@ const getAllIssues = async () => {
     } catch (error) { throw error; }
 };
 
+/**
+ * Build analytics for a given WHERE clause and range
+ * Used for both global (admin) and per-organization analytics
+ */
+const buildAnalytics = async ({ rangeDays, whereSql = '', params = [] }) => {
+    const range = Number.isFinite(rangeDays) && rangeDays > 0 ? rangeDays : 30;
+
+    // 1) Timeseries: issues created per day with status breakdown
+    const [timeseries] = await pool.query(
+        `
+         SELECT 
+           DATE(created_at) as day,
+           COUNT(*) as total,
+           SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as pending,
+           SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as in_progress,
+           SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as resolved
+         FROM issues
+         WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+           ${whereSql}
+         GROUP BY DATE(created_at)
+         ORDER BY day
+        `,
+        [ISSUE_STATUS.PENDING, ISSUE_STATUS.IN_PROGRESS, ISSUE_STATUS.RESOLVED, range, ...params]
+    );
+
+    // 2) Resolved by organization category
+    const [byCategory] = await pool.query(
+        `
+         SELECT 
+           COALESCE(o.category, 'Other') as category,
+           COUNT(*) as resolved
+         FROM issues i
+         JOIN organizations o ON i.organization_id = o.id
+         WHERE i.status = ?
+           AND i.resolved_at IS NOT NULL
+           AND i.resolved_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+           ${whereSql ? whereSql.replace(/created_at/g, 'i.resolved_at').replace(/issues /g, 'i ') : ''}
+         GROUP BY COALESCE(o.category, 'Other')
+         ORDER BY resolved DESC
+        `,
+        [ISSUE_STATUS.RESOLVED, range, ...params]
+    );
+
+    // 3) SLA buckets based on resolution time in hours
+    const [slaRows] = await pool.query(
+        `
+         SELECT
+           SUM(CASE WHEN TIMESTAMPDIFF(HOUR, created_at, resolved_at) < 4 THEN 1 ELSE 0 END) as lt4,
+           SUM(CASE WHEN TIMESTAMPDIFF(HOUR, created_at, resolved_at) BETWEEN 4 AND 11 THEN 1 ELSE 0 END) as h4_12,
+           SUM(CASE WHEN TIMESTAMPDIFF(HOUR, created_at, resolved_at) BETWEEN 12 AND 23 THEN 1 ELSE 0 END) as h12_24,
+           SUM(CASE WHEN TIMESTAMPDIFF(HOUR, created_at, resolved_at) >= 24 THEN 1 ELSE 0 END) as gt24
+         FROM issues
+         WHERE status = ?
+           AND resolved_at IS NOT NULL
+           AND resolved_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+           ${whereSql ? whereSql.replace(/created_at/g, 'resolved_at') : ''}
+        `,
+        [ISSUE_STATUS.RESOLVED, range, ...params]
+    );
+
+    const slaRow = slaRows[0] || { lt4: 0, h4_12: 0, h12_24: 0, gt24: 0 };
+    const slaBuckets = [
+        { name: '< 4h', value: Number(slaRow.lt4 || 0) },
+        { name: '4–12h', value: Number(slaRow.h4_12 || 0) },
+        { name: '12–24h', value: Number(slaRow.h12_24 || 0) },
+        { name: '> 24h', value: Number(slaRow.gt24 || 0) },
+    ];
+
+    // 4) Backlog: open issues age vs simple "priority weight" per status
+    const [backlog] = await pool.query(
+        `
+         SELECT 
+           DATEDIFF(CURDATE(), created_at) as age_days,
+           CASE 
+             WHEN status = ? THEN 1
+             WHEN status = ? THEN 2
+             ELSE 0
+           END as weight
+         FROM issues
+         WHERE status <> ?
+           ${whereSql}
+        `,
+        [ISSUE_STATUS.PENDING, ISSUE_STATUS.IN_PROGRESS, ISSUE_STATUS.RESOLVED, ...params]
+    );
+
+    const backlogScatter = backlog.map(row => ({
+        x: Number(row.age_days || 0),
+        y: Number(row.weight || 0),
+    }));
+
+    return {
+        rangeDays: range,
+        timeseries,
+        resolutionByCategory: byCategory,
+        slaBuckets,
+        backlogScatter,
+    };
+};
+
+const getGlobalAnalytics = async (rangeDays) => {
+    return buildAnalytics({ rangeDays });
+};
+
+const getOrganizationAnalytics = async (organizationId, rangeDays) => {
+    const whereSql = ' AND organization_id = ?';
+    return buildAnalytics({ rangeDays, whereSql, params: [organizationId] });
+};
+
 module.exports = {
     createIssue,
     getUserIssues,
@@ -317,5 +425,7 @@ module.exports = {
     updateIssueStatus,
     getIssueById,
     getIssueImageData,
-    getAllIssues
+    getAllIssues,
+    getGlobalAnalytics,
+    getOrganizationAnalytics
 };

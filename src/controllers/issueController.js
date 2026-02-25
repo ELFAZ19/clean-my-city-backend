@@ -5,6 +5,7 @@
 
 const issueService = require('../services/issueService');
 const { pool } = require('../config/database');
+const { USER_ROLES } = require('../config/constants');
 
 /**
  * Create a new issue (with duplicate detection and image upload)
@@ -236,6 +237,50 @@ const getAllIssues = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+const getGlobalAnalytics = async (req, res, next) => {
+    try {
+        if (req.user.role !== USER_ROLES.ADMIN) {
+            return res.status(403).json({ success: false, message: 'Forbidden' });
+        }
+        const range = parseInt(req.query.range, 10) || 30;
+        const analytics = await issueService.getGlobalAnalytics(range);
+        res.status(200).json({ success: true, data: analytics });
+    } catch (error) {
+        next(error);
+    }
+};
+
+const getOrganizationAnalytics = async (req, res, next) => {
+    try {
+        if (req.user.role !== USER_ROLES.AUTHORITY) {
+            return res.status(403).json({ success: false, message: 'Forbidden' });
+        }
+
+        const [organizations] = await pool.query(
+            'SELECT id FROM organizations WHERE user_id = ?',
+            [req.user.id]
+        );
+
+        if (organizations.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Organization not found for this user'
+            });
+        }
+
+        const organizationId = organizations[0].id;
+        const range = parseInt(req.query.range, 10) || 30;
+        const analytics = await issueService.getOrganizationAnalytics(organizationId, range);
+
+        res.status(200).json({
+            success: true,
+            data: { organization_id: organizationId, ...analytics }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     createIssue,
     getMyIssues,
@@ -243,5 +288,7 @@ module.exports = {
     updateIssueStatus,
     getIssueById,
     getIssueImage,
-    getAllIssues
+    getAllIssues,
+    getGlobalAnalytics,
+    getOrganizationAnalytics
 };
