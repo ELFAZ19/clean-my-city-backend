@@ -324,14 +324,12 @@ const buildAnalytics = async ({ rangeDays, extraWhereSql = '', extraParams = [] 
     const range = Number.isFinite(rangeDays) && rangeDays > 0 ? rangeDays : 30;
 
     // ── 1) Timeseries: issues created per day with status breakdown ──
-    // Base params: $1=PENDING, $2=IN_PROGRESS, $3=RESOLVED, $4=range
-    // Extra params start at $5
     const tsExtra = extraWhereSql
         ? extraWhereSql.replace(/\$X(\d+)/g, (_, n) => `$${4 + Number(n)}`)
         : '';
-    const [timeseries] = await pool.query(
+    const [tsRows] = await pool.query(
         `SELECT
-           created_at::date as day,
+           created_at::date::text as day,
            COUNT(*) as total,
            SUM(CASE WHEN status = $1 THEN 1 ELSE 0 END) as pending,
            SUM(CASE WHEN status = $2 THEN 1 ELSE 0 END) as in_progress,
@@ -344,32 +342,42 @@ const buildAnalytics = async ({ rangeDays, extraWhereSql = '', extraParams = [] 
         [ISSUE_STATUS.PENDING, ISSUE_STATUS.IN_PROGRESS, ISSUE_STATUS.RESOLVED, range, ...extraParams]
     );
 
-    // ── 2) Resolved by organization category ──
-    // Base params: $1=RESOLVED, $2=range
-    // Extra params start at $3
+    const timeseries = tsRows.map(row => ({
+        day: row.day,
+        total: Number(row.total || 0),
+        pending: Number(row.pending || 0),
+        in_progress: Number(row.in_progress || 0),
+        resolved: Number(row.resolved || 0)
+    }));
+
+    // ── 2) Issues by organization category: total vs resolved ──
     const catExtra = extraWhereSql
         ? extraWhereSql
-              .replace(/created_at/g, 'i.resolved_at')
+              .replace(/created_at/g, 'i.created_at')
               .replace(/issues /g, 'i ')
               .replace(/\$X(\d+)/g, (_, n) => `$${2 + Number(n)}`)
         : '';
-    const [byCategory] = await pool.query(
+    const [catRows] = await pool.query(
         `SELECT
            COALESCE(o.category, 'Other') as category,
-           COUNT(*) as resolved
+           COUNT(*) as total,
+           SUM(CASE WHEN i.status = $1 THEN 1 ELSE 0 END) as resolved
          FROM issues i
          JOIN organizations o ON i.organization_id = o.id
-         WHERE i.status = $1
-           AND i.resolved_at IS NOT NULL
-           AND i.resolved_at >= CURRENT_DATE - INTERVAL '1 day' * $2
+         WHERE i.created_at >= CURRENT_DATE - INTERVAL '1 day' * $2
            ${catExtra}
          GROUP BY COALESCE(o.category, 'Other')
-         ORDER BY resolved DESC`,
+         ORDER BY total DESC`,
         [ISSUE_STATUS.RESOLVED, range, ...extraParams]
     );
 
+    const resolutionByCategory = catRows.map(row => ({
+        category: row.category,
+        total: Number(row.total || 0),
+        resolved: Number(row.resolved || 0)
+    }));
+
     // ── 3) SLA buckets based on resolution time in hours ──
-    // Base params: $1=RESOLVED, $2=range
     const slaExtra = extraWhereSql
         ? extraWhereSql
               .replace(/created_at/g, 'resolved_at')
@@ -398,7 +406,6 @@ const buildAnalytics = async ({ rangeDays, extraWhereSql = '', extraParams = [] 
     ];
 
     // ── 4) Backlog: open issues age vs simple "priority weight" per status ──
-    // Base params: $1=PENDING, $2=IN_PROGRESS, $3=RESOLVED
     const blExtra = extraWhereSql
         ? extraWhereSql.replace(/\$X(\d+)/g, (_, n) => `$${3 + Number(n)}`)
         : '';
@@ -424,7 +431,7 @@ const buildAnalytics = async ({ rangeDays, extraWhereSql = '', extraParams = [] 
     return {
         rangeDays: range,
         timeseries,
-        resolutionByCategory: byCategory,
+        resolutionByCategory,
         slaBuckets,
         backlogScatter,
     };
