@@ -26,7 +26,7 @@ const DUPLICATE_DETECTION = {
 
 // JWT configuration
 const JWT_CONFIG = {
-    SECRET: process.env.JWT_SECRET || 'your-jwt-secret-change-in-production',
+    SECRET: process.env.JWT_SECRET, // NO FALLBACK - MUST BE IN ENV
     EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h'
 };
 
@@ -45,11 +45,19 @@ const RATE_LIMIT = {
     MAX_REQUESTS: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100
 };
 
+// Security Config
+const SECURITY = {
+    BCRYPT_ROUNDS: parseInt(process.env.BCRYPT_ROUNDS) || 12, // Increased to 12
+    CSRF_COOKIE_NAME: '_csrf',
+    TOKEN_COOKIE_NAME: 'cmc_token'
+};
+
 module.exports = {
     USER_ROLES,
     ISSUE_STATUS,
     DUPLICATE_DETECTION,
     JWT_CONFIG,
     PASSWORD_REQUIREMENTS,
-    RATE_LIMIT
+    RATE_LIMIT,
+    SECURITY
 };

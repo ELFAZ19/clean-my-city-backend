@@ -19,54 +19,58 @@ class AppError extends Error {
  * Global error handler middleware
  */
 const errorHandler = (err, req, res, next) => {
-    let error = { ...err };
-    error.message = err.message;
+    let statusCode = err.statusCode || 500;
+    let message = err.message;
 
-    // Log error for debugging
-    console.error('Error:', {
+    // Log error for debugging (server-side only, never sent to client)
+    const logger = require('../config/logger');
+    logger.error('Error:', {
         message: err.message,
-        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+        stack: err.stack,
         url: req.originalUrl,
-        method: req.method
+        method: req.method,
+        ip: req.ip
     });
 
     // MySQL duplicate entry error
     if (err.code === 'ER_DUP_ENTRY') {
-        error.message = 'Duplicate entry. This record already exists.';
-        error.statusCode = 409;
+        message = 'Duplicate entry. This record already exists.';
+        statusCode = 409;
     }
 
     // MySQL foreign key constraint error
     if (err.code === 'ER_NO_REFERENCED_ROW_2') {
-        error.message = 'Referenced record does not exist.';
-        error.statusCode = 400;
+        message = 'Referenced record does not exist.';
+        statusCode = 400;
     }
 
     // JWT errors
     if (err.name === 'JsonWebTokenError') {
-        error.message = 'Invalid token. Please login again.';
-        error.statusCode = 401;
+        message = 'Invalid token. Please login again.';
+        statusCode = 401;
     }
 
     if (err.name === 'TokenExpiredError') {
-        error.message = 'Token expired. Please login again.';
-        error.statusCode = 401;
+        message = 'Token expired. Please login again.';
+        statusCode = 401;
     }
 
     // Validation errors
     if (err.name === 'ValidationError') {
-        error.message = 'Validation failed';
-        error.statusCode = 400;
+        message = 'Validation failed';
+        statusCode = 400;
     }
 
-    // Default error response
-    const statusCode = error.statusCode || 500;
-    const message = error.message || 'Internal server error';
+    // CRITICAL: In production, NEVER expose internal error details
+    // Only operational (expected) errors get their message passed to client
+    if (statusCode === 500 && process.env.NODE_ENV === 'production') {
+        message = 'An unexpected error occurred. Please try again later.';
+    }
 
     res.status(statusCode).json({
         success: false,
-        message: message,
-        ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+        message: message
+        // No stack traces, no error codes, no internal details
     });
 };
 
@@ -74,7 +78,11 @@ const errorHandler = (err, req, res, next) => {
  * 404 Not Found handler
  */
 const notFound = (req, res, next) => {
-    const error = new AppError(`Route not found: ${req.originalUrl}`, 404);
+    // Don't reveal the attempted URL in production
+    const message = process.env.NODE_ENV === 'production'
+        ? 'The requested resource was not found'
+        : `Route not found: ${req.originalUrl}`;
+    const error = new AppError(message, 404);
     next(error);
 };
 

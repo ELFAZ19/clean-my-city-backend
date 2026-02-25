@@ -5,6 +5,7 @@
 
 const bcrypt = require('bcrypt');
 const { pool } = require('../config/database');
+const { SECURITY } = require('../config/constants');
 const { AppError } = require('../middleware/errorHandler');
 
 /**
@@ -105,8 +106,7 @@ const changePassword = async (userId, currentPassword, newPassword) => {
         }
 
         // Hash new password
-        const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 10;
-        const newPasswordHash = await bcrypt.hash(newPassword, saltRounds);
+        const newPasswordHash = await bcrypt.hash(newPassword, SECURITY.BCRYPT_ROUNDS);
 
         // Update password
         await pool.query(

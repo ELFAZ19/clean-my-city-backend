@@ -6,7 +6,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/database');
-const { JWT_CONFIG, USER_ROLES } = require('../config/constants');
+const { JWT_CONFIG, USER_ROLES, SECURITY } = require('../config/constants');
 const { AppError } = require('../middleware/errorHandler');
 
 /**
@@ -29,8 +29,7 @@ const register = async (userData) => {
         }
 
         // Hash password
-        const saltRounds = parseInt(process.env.BCRYPT_ROUNDS) || 10;
-        const password_hash = await bcrypt.hash(password, saltRounds);
+        const password_hash = await bcrypt.hash(password, SECURITY.BCRYPT_ROUNDS);
 
         // Insert user
         const [result] = await pool.query(

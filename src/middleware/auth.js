@@ -54,8 +54,7 @@ const authenticate = async (req, res, next) => {
         console.error('Authentication error:', error);
         return res.status(500).json({
             success: false,
-            message: 'Authentication failed',
-            error: error.message
+            message: 'Authentication failed'
         });
     }
 };
