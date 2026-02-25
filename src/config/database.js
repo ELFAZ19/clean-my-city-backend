@@ -20,7 +20,8 @@ const pgPool = new Pool({
     database: process.env.DB_NAME || 'fix_my_city',
     max: 10,                // connectionLimit equivalent
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000
+    connectionTimeoutMillis: 10000,
+    ssl: { rejectUnauthorized: false }
 });
 
 /**
