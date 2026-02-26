@@ -16,7 +16,7 @@ const csrf = require('csurf');
 require('dotenv').config();
 
 const sessionConfig = require('./config/session');
-const { RATE_LIMIT, SECURITY } = require('./config/constants');
+const { RATE_LIMIT } = require('./config/constants');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const logger = require('./config/logger');
 
@@ -28,15 +28,22 @@ const organizationRoutes = require('./routes/organization.routes');
 
 const app = express();
 
+const isProduction = process.env.NODE_ENV === 'production';
+
+/* ============================================
+   TRUST PROXY (REQUIRED FOR RENDER)
+============================================ */
+if (isProduction) {
+  app.set('trust proxy', 1);
+}
+
 /* ============================================
    LOGGING
 ============================================ */
 const morganFormat =
-  process.env.NODE_ENV === 'production' ? 'combined' : 'dev';
+  isProduction ? 'combined' : 'dev';
 
 app.use(morgan(morganFormat, { stream: logger.stream }));
-
-logger.info('Express application initialising (Hardened Mode)...');
 
 /* ============================================
    SECURITY HEADERS
@@ -48,9 +55,8 @@ app.use(
 );
 
 /* ============================================
-   CORS (FROM ENV ONLY)
+   CORS
 ============================================ */
-
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
   : [];
@@ -69,12 +75,11 @@ app.use(
 );
 
 /* ============================================
-   BODY + COOKIES
+   BODY + COOKIE PARSER
 ============================================ */
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-
 app.use(xss());
 app.use(hpp());
 
@@ -88,37 +93,25 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 /* ============================================
-   SESSION (MUST COME BEFORE CSRF)
+   SESSION
 ============================================ */
 app.use(session(sessionConfig));
 
 /* ============================================
-   CSRF CONFIGURATION (CROSS-ORIGIN SAFE)
+   CSRF CONFIG
 ============================================ */
-
-const isProduction = process.env.NODE_ENV === 'production';
-
-const csrfProtection = csrf({
-  cookie: {
-    key: SECURITY.CSRF_COOKIE_NAME || 'csrfToken',
-    httpOnly: true,
-    secure: isProduction,       // true on Render (HTTPS)
-    sameSite: isProduction ? 'none' : 'lax'
-  },
-});
+const csrfProtection = csrf();
 
 /* ============================================
    CSRF TOKEN ROUTE
 ============================================ */
-
 app.get('/api/csrf-token', csrfProtection, (req, res) => {
   res.json({ csrfToken: req.csrfToken() });
 });
 
 /* ============================================
-   APPLY CSRF ONLY TO MUTATING REQUESTS
+   APPLY CSRF TO MUTATING ROUTES
 ============================================ */
-
 app.use('/api/', (req, res, next) => {
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
     return csrfProtection(req, res, next);
@@ -134,7 +127,6 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 /* ============================================
    ROUTES
 ============================================ */
-
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/issues', issueRoutes);
@@ -143,7 +135,6 @@ app.use('/api/organizations', organizationRoutes);
 /* ============================================
    ERROR HANDLING
 ============================================ */
-
 app.use(notFound);
 
 app.use((err, req, res, next) => {
