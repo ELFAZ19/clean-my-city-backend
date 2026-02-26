@@ -281,6 +281,40 @@ const getOrganizationAnalytics = async (req, res, next) => {
     }
 };
 
+/**
+ * Delete an issue
+ * DELETE /api/issues/:id
+ * (Authorities can only delete issues belonging to their organization)
+ */
+const deleteIssue = async (req, res, next) => {
+    try {
+        const issueId = parseInt(req.params.id);
+
+        // Get organization ID for current authority user
+        const [organizations] = await pool.query(
+            'SELECT id FROM organizations WHERE user_id = $1',
+            [req.user.id]
+        );
+
+        if (organizations.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Organization not found for this user'
+            });
+        }
+
+        const organizationId = organizations[0].id;
+        await issueService.deleteIssue(issueId, organizationId);
+
+        res.status(200).json({
+            success: true,
+            message: 'Issue deleted successfully'
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     createIssue,
     getMyIssues,
@@ -290,5 +324,6 @@ module.exports = {
     getIssueImage,
     getAllIssues,
     getGlobalAnalytics,
-    getOrganizationAnalytics
+    getOrganizationAnalytics,
+    deleteIssue
 };

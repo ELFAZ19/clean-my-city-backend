@@ -99,6 +99,18 @@ router.put(
 );
 
 /**
+ * @route   DELETE /api/issues/:id
+ * @desc    Delete an issue (authority can only delete issues in their organization)
+ * @access  Private (Authorities only)
+ */
+router.delete(
+    '/:id',
+    authenticate,
+    authorize([USER_ROLES.AUTHORITY]),
+    issueController.deleteIssue
+);
+
+/**
  * @route   GET /api/issues/:id/image
  * @desc    Get issue image
  * @access  Private (Owner or assigned authority)

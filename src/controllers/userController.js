@@ -101,10 +101,37 @@ const toggleUserActive = async (req, res, next) => {
     }
 };
 
+/**
+ * Delete a user (Admin only)
+ * DELETE /api/users/:id
+ */
+const deleteUser = async (req, res, next) => {
+    try {
+        const userId = parseInt(req.params.id);
+
+        if (userId === req.user.id) {
+            return res.status(400).json({
+                success: false,
+                message: 'You cannot delete your own account.'
+            });
+        }
+
+        await userService.deleteUser(userId);
+
+        res.status(200).json({
+            success: true,
+            message: 'User deleted successfully.'
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getProfile,
     updateProfile,
     changePassword,
     getAllUsers,
-    toggleUserActive
+    toggleUserActive,
+    deleteUser
 };

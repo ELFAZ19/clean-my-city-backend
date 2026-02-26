@@ -12,5 +12,6 @@ router.put('/password', authenticate, validatePasswordChange, userController.cha
 // Admin-only routes
 router.get('/', authenticate, authorize([USER_ROLES.ADMIN]), userController.getAllUsers);
 router.put('/:id/toggle-active', authenticate, authorize([USER_ROLES.ADMIN]), userController.toggleUserActive);
+router.delete('/:id', authenticate, authorize([USER_ROLES.ADMIN]), userController.deleteUser);
 
 module.exports = router;

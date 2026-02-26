@@ -313,6 +313,28 @@ const getAllIssues = async () => {
 };
 
 /**
+ * Delete an issue by ID, ensuring it belongs to the given organization
+ * @param {number} issueId
+ * @param {number} organizationId
+ */
+const deleteIssue = async (issueId, organizationId) => {
+    try {
+        const [issues] = await pool.query(
+            'SELECT id FROM issues WHERE id = $1 AND organization_id = $2',
+            [issueId, organizationId]
+        );
+
+        if (issues.length === 0) {
+            throw new AppError('Issue not found or not assigned to your authority', 404);
+        }
+
+        await pool.query('DELETE FROM issues WHERE id = $1', [issueId]);
+    } catch (error) {
+        throw error;
+    }
+};
+
+/**
  * Build analytics for a given WHERE clause and range
  * Used for both global (admin) and per-organization analytics
  *
@@ -456,5 +478,6 @@ module.exports = {
     getIssueImageData,
     getAllIssues,
     getGlobalAnalytics,
-    getOrganizationAnalytics
+    getOrganizationAnalytics,
+    deleteIssue
 };

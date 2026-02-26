@@ -149,10 +149,24 @@ const toggleUserActive = async (userId) => {
     return updated[0];
 };
 
+/**
+ * Permanently delete a user (Admin only)
+ * @param {number} userId
+ */
+const deleteUser = async (userId) => {
+    const [rows] = await pool.query('SELECT id FROM users WHERE id = $1', [userId]);
+    if (rows.length === 0) {
+        throw new AppError('User not found', 404);
+    }
+
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+};
+
 module.exports = {
     getUserProfile,
     updateUserProfile,
     changePassword,
     getAllUsers,
-    toggleUserActive
+    toggleUserActive,
+    deleteUser
 };
