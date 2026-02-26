@@ -11,7 +11,6 @@ const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const hpp = require('hpp');
 const xss = require('xss-clean');
-const csrf = require('csurf');
 require('dotenv').config();
 
 const { RATE_LIMIT } = require('./config/constants');
@@ -91,44 +90,6 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 /* ============================================
-   CSRF (STATELESS COOKIE / DOUBLE-SUBMIT)
-============================================ */
-
-const csrfCookieOptions = {
-  key: 'XSRF-TOKEN',
-  httpOnly: false,
-  // In local dev over http, secure must be false or Chrome will drop the cookie.
-  secure: isProduction,
-  sameSite: 'none',
-  // Help Chrome's 3rd-party cookie restrictions by marking this as partitioned.
-  partitioned: true,
-};
-
-const csrfProtection = csrf({
-  cookie: csrfCookieOptions,
-});
-
-// Apply CSRF protection and always refresh XSRF-TOKEN cookie.
-// Axios will read this cookie and send it back via X-CSRF-Token header.
-app.use(csrfProtection);
-app.use((req, res, next) => {
-  try {
-    const token = req.csrfToken();
-    res.cookie('XSRF-TOKEN', token, csrfCookieOptions);
-  } catch (e) {
-    // If token generation fails, let the error handler deal with it
-  }
-  next();
-});
-
-// Lightweight endpoint to ensure the CSRF cookie is initialized.
-// Frontend can call this once on app load; it does not need
-// to read or store the token manually.
-app.get('/api/csrf-token', (req, res) => {
-  return res.status(204).send();
-});
-
-/* ============================================
    STATIC
 ============================================ */
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -145,16 +106,6 @@ app.use('/api/organizations', organizationRoutes);
    ERROR HANDLING
 ============================================ */
 app.use(notFound);
-
-app.use((err, req, res, next) => {
-  if (err.code === 'EBADCSRFTOKEN') {
-    return res.status(403).json({
-      success: false,
-      message: 'Invalid or missing CSRF token',
-    });
-  }
-  next(err);
-});
 
 app.use(errorHandler);
 
