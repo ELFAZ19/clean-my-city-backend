@@ -8,14 +8,12 @@ const helmet = require('helmet');
 const cors = require('cors');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
-const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const hpp = require('hpp');
 const xss = require('xss-clean');
 const csrf = require('csurf');
 require('dotenv').config();
 
-const sessionConfig = require('./config/session');
 const { RATE_LIMIT } = require('./config/constants');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const logger = require('./config/logger');
@@ -93,28 +91,31 @@ const limiter = rateLimit({
 app.use('/api/', limiter);
 
 /* ============================================
-   SESSION
+   CSRF (STATELESS COOKIE / DOUBLE-SUBMIT)
 ============================================ */
-app.use(session(sessionConfig));
 
-/* ============================================
-   CSRF CONFIG
-============================================ */
-const csrfProtection = csrf();
-
-/* ============================================
-   CSRF TOKEN ROUTE
-============================================ */
-app.get('/api/csrf-token', csrfProtection, (req, res) => {
-  res.json({ csrfToken: req.csrfToken() });
+const csrfProtection = csrf({
+  cookie: {
+    key: 'XSRF-TOKEN',
+    httpOnly: false,
+    secure: true,
+    sameSite: 'none',
+  },
 });
 
-/* ============================================
-   APPLY CSRF TO MUTATING ROUTES
-============================================ */
-app.use('/api/', (req, res, next) => {
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-    return csrfProtection(req, res, next);
+// Apply CSRF protection and always refresh XSRF-TOKEN cookie.
+// Axios will read this cookie and send it back via X-CSRF-Token header.
+app.use(csrfProtection);
+app.use((req, res, next) => {
+  try {
+    const token = req.csrfToken();
+    res.cookie('XSRF-TOKEN', token, {
+      httpOnly: false,
+      secure: true,
+      sameSite: 'none',
+    });
+  } catch (e) {
+    // If token generation fails, let the error handler deal with it
   }
   next();
 });

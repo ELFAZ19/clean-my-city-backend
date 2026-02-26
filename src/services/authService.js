@@ -1,6 +1,6 @@
 /**
  * Authentication Service
- * Handles user registration, login, and session management
+ * Handles user registration, login, and JWT management
  */
 
 const bcrypt = require('bcrypt');
@@ -52,13 +52,12 @@ const register = async (userData) => {
 };
 
 /**
- * Login user and create session
+ * Login user and issue JWT
  * @param {string} email - User email
  * @param {string} password - User password
- * @param {Object} session - Express session object
  * @returns {Object} User data and JWT token
  */
-const login = async (email, password, session) => {
+const login = async (email, password) => {
     try {
         // Find user by email
         const [users] = await pool.query(
@@ -92,24 +91,6 @@ const login = async (email, password, session) => {
             role: user.role
         };
 
-        // Create session and save to database
-        if (session) {
-            session.user = userObject;
-            session.isLoggedIn = true;
-            
-            // Explicitly save session to database
-            await new Promise((resolve, reject) => {
-                session.save((err) => {
-                    if (err) {
-                        console.error('Session save error:', err);
-                        reject(err);
-                    } else {
-                        resolve();
-                    }
-                });
-            });
-        }
-
         // Generate JWT token
         const token = jwt.sign(userObject, JWT_CONFIG.SECRET, {
             expiresIn: JWT_CONFIG.EXPIRES_IN
@@ -126,23 +107,11 @@ const login = async (email, password, session) => {
 };
 
 /**
- * Logout user by destroying session
- * @param {Object} session - Express session object
+ * Logout user (JWT is stateless; client should discard token)
  */
-const logout = (session) => {
-    return new Promise((resolve, reject) => {
-        if (session) {
-            session.destroy((err) => {
-                if (err) {
-                    reject(new AppError('Logout failed', 500));
-                } else {
-                    resolve();
-                }
-            });
-        } else {
-            resolve();
-        }
-    });
+const logout = () => {
+    // With pure JWT auth, logout is handled client-side by removing the token.
+    return Promise.resolve();
 };
 
 /**

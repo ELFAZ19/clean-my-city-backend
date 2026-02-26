@@ -14,15 +14,6 @@ const register = async (req, res, next) => {
     try {
         const user = await authService.register(req.body);
 
-        // Create session for newly registered user
-        req.session.user = {
-            id: user.id,
-            email: user.email,
-            full_name: user.full_name,
-            phone: user.phone,
-            role: user.role
-        };
-
         // Generate JWT token for the new user
         const token = generateToken(user);
 
@@ -45,7 +36,7 @@ const login = async (req, res, next) => {
     try {
         const { email, password } = req.body;
         
-        const result = await authService.login(email, password, req.session);
+        const result = await authService.login(email, password);
 
         res.status(200).json({
             success: true,
@@ -64,7 +55,7 @@ const login = async (req, res, next) => {
  */
 const logout = async (req, res, next) => {
     try {
-        await authService.logout(req.session);
+        await authService.logout();
 
         res.status(200).json({
             success: true,

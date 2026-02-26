@@ -1,20 +1,19 @@
 /**
  * Authentication Middleware
- * Supports both JWT tokens and session-based authentication
+ * Supports JWT token-based authentication
  */
 
 const jwt = require('jsonwebtoken');
 const { JWT_CONFIG } = require('../config/constants');
 
 /**
- * Authenticate user via JWT token or session
- * Checks Authorization header for JWT or req.session for session-based auth
+ * Authenticate user via JWT token
  */
 const authenticate = async (req, res, next) => {
     try {
         let user = null;
 
-        // Method 1: Check for JWT token in Authorization header
+        // Check for JWT token in Authorization header
         const authHeader = req.headers.authorization;
         if (authHeader && authHeader.startsWith('Bearer ')) {
             const token = authHeader.substring(7); // Remove 'Bearer ' prefix
@@ -31,11 +30,6 @@ const authenticate = async (req, res, next) => {
                 // JWT invalid or expired, continue to check session
                 console.log('JWT verification failed:', jwtError.message);
             }
-        }
-
-        // Method 2: Check for session-based authentication
-        if (!user && req.session && req.session.user) {
-            user = req.session.user;
         }
 
         // If no authentication method succeeded
