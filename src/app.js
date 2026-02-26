@@ -94,13 +94,18 @@ app.use('/api/', limiter);
    CSRF (STATELESS COOKIE / DOUBLE-SUBMIT)
 ============================================ */
 
+const csrfCookieOptions = {
+  key: 'XSRF-TOKEN',
+  httpOnly: false,
+  // In local dev over http, secure must be false or Chrome will drop the cookie.
+  secure: isProduction,
+  sameSite: 'none',
+  // Help Chrome's 3rd-party cookie restrictions by marking this as partitioned.
+  partitioned: true,
+};
+
 const csrfProtection = csrf({
-  cookie: {
-    key: 'XSRF-TOKEN',
-    httpOnly: false,
-    secure: true,
-    sameSite: 'none',
-  },
+  cookie: csrfCookieOptions,
 });
 
 // Apply CSRF protection and always refresh XSRF-TOKEN cookie.
@@ -109,11 +114,7 @@ app.use(csrfProtection);
 app.use((req, res, next) => {
   try {
     const token = req.csrfToken();
-    res.cookie('XSRF-TOKEN', token, {
-      httpOnly: false,
-      secure: true,
-      sameSite: 'none',
-    });
+    res.cookie('XSRF-TOKEN', token, csrfCookieOptions);
   } catch (e) {
     // If token generation fails, let the error handler deal with it
   }
