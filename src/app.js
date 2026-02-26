@@ -120,6 +120,13 @@ app.use((req, res, next) => {
   next();
 });
 
+// Lightweight endpoint to ensure the CSRF cookie is initialized.
+// Frontend can call this once on app load; it does not need
+// to read or store the token manually.
+app.get('/api/csrf-token', (req, res) => {
+  return res.status(204).send();
+});
+
 /* ============================================
    STATIC
 ============================================ */
