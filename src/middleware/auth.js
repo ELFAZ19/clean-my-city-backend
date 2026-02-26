@@ -13,11 +13,17 @@ const authenticate = async (req, res, next) => {
     try {
         let user = null;
 
-        // Check for JWT token in Authorization header
+        // Check for JWT token in Authorization header or query parameter
         const authHeader = req.headers.authorization;
+        let token = null;
+
         if (authHeader && authHeader.startsWith('Bearer ')) {
-            const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-            
+            token = authHeader.substring(7);
+        } else if (req.query.token) {
+            token = req.query.token;
+        }
+
+        if (token) {
             try {
                 const decoded = jwt.verify(token, JWT_CONFIG.SECRET);
                 user = {
